@@ -52,7 +52,12 @@ async function collectFileNames(projectRoot: string): Promise<Set<string>> {
   const names = new Set<string>();
 
   async function walk(dir: string) {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
     for (const entry of entries) {
       if (entry.name === META_DIR) continue;
       const abs = path.join(dir, entry.name);
@@ -177,7 +182,12 @@ export async function syncConceptTagsFromFiles(
   let changed = false;
 
   async function walk(dir: string, rel = "") {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
     for (const entry of entries) {
       if (entry.name === META_DIR) continue;
       const abs = path.join(dir, entry.name);

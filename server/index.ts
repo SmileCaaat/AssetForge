@@ -35,7 +35,8 @@ import { isPathInsideRoot } from "./pathSecurity.js";
 import type { OpenFolderTarget, ProjectLink, ProjectSide } from "./types.js";
 import { createMasterWorkspace } from "./workspaceCreator.js";
 import { isDuplicateWorkspace, openMasterWorkspace } from "./workspaceLinker.js";
-import { repairProjectLinks, resolveProjectPathAccessible } from "./projectPaths.js";
+import { repairProjectLinks, resolveProjectPathAccessible, resolveProjectRootWithStatus } from "./projectPaths.js";
+import { emptyProjectTree, missingProjectWarning } from "./projectRootHelpers.js";
 import {
   loadConceptTags,
   markConceptAsset,
@@ -66,6 +67,7 @@ import { pickFolder } from "./folderPicker.js";
 import { resolvePickerTokenPath } from "./pickerToken.js";
 import { importFilesToDirectory } from "./importFiles.js";
 import multer from "multer";
+import { materialLabRouter } from "./routes/materialLab.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3456;
@@ -404,9 +406,18 @@ app.get("/api/projects/:id/tree", async (req, res) => {
     ({ state } = await repairActiveWorkspace(state));
     const active = getActiveWorkspace(state);
     const project = findProject(state, req.params.id);
-    const root = await resolveProjectPathAccessible(active, project, side);
+    const { root, exists } = await resolveProjectRootWithStatus(active, project, side);
+    if (!exists) {
+      res.json({
+        root,
+        tree: emptyProjectTree(root),
+        missing: true,
+        warning: missingProjectWarning(root),
+      });
+      return;
+    }
     const tree = await buildFileTree(root, path.basename(root));
-    res.json({ root, tree });
+    res.json({ root, tree: tree ?? emptyProjectTree(root) });
   } catch (error) {
     res.status(404).json({ error: String(error) });
   }
@@ -419,7 +430,16 @@ app.get("/api/projects/:id/assets", async (req, res) => {
     ({ state } = await repairActiveWorkspace(state));
     const active = getActiveWorkspace(state);
     const project = findProject(state, req.params.id);
-    const root = await resolveProjectPathAccessible(active, project, side);
+    const { root, exists } = await resolveProjectRootWithStatus(active, project, side);
+    if (!exists) {
+      res.json({
+        root,
+        assets: [],
+        missing: true,
+        warning: missingProjectWarning(root),
+      });
+      return;
+    }
     const assets = await collectPreviewableFiles(root);
     res.json({ root, assets });
   } catch (error) {
@@ -433,7 +453,12 @@ app.get("/api/projects/:id/concept-tags", async (req, res) => {
     ({ state } = await repairActiveWorkspace(state));
     const active = getActiveWorkspace(state);
     const project = findProject(state, req.params.id);
-    const projectRoot = await resolveProjectPathAccessible(active, project, "concept");
+    const { root, exists } = await resolveProjectRootWithStatus(active, project, "concept");
+    if (!exists) {
+      res.json({ tags: {}, entries: {}, missing: true, warning: missingProjectWarning(root) });
+      return;
+    }
+    const projectRoot = root;
     let tagsFile = await loadConceptTags(projectRoot);
     tagsFile = await syncConceptTagsFromFiles(projectRoot, project.displayName, tagsFile);
     const tags = resolveConceptTagsByPath(projectRoot, tagsFile);
@@ -477,10 +502,14 @@ app.get("/api/projects/:id/texture-tags", async (req, res) => {
     const state = await loadConfig();
     const active = getActiveWorkspace(state);
     const project = findProject(state, req.params.id);
-    const projectRoot = await resolveProjectPathAccessible(active, project, "blender");
-    let tagsFile = await loadTextureTags(projectRoot);
-    tagsFile = await syncTextureTagsFromFiles(projectRoot, project.displayName, tagsFile);
-    const tags = resolveTextureTagsByPath(projectRoot, tagsFile);
+    const { root, exists } = await resolveProjectRootWithStatus(active, project, "blender");
+    if (!exists) {
+      res.json({ tags: {}, entries: {}, missing: true, warning: missingProjectWarning(root) });
+      return;
+    }
+    let tagsFile = await loadTextureTags(root);
+    tagsFile = await syncTextureTagsFromFiles(root, project.displayName, tagsFile);
+    const tags = resolveTextureTagsByPath(root, tagsFile);
     res.json({ tags, entries: tagsFile.tags });
   } catch (error) {
     res.status(404).json({ error: String(error) });
@@ -728,6 +757,8 @@ app.post("/api/fs/import-files", upload.array("files"), async (req, res) => {
     res.status(400).json({ error: String(error) });
   }
 });
+
+app.use("/api/projects", materialLabRouter);
 
 app.get("/api/files", async (req, res) => {
   try {

@@ -92,6 +92,8 @@ export interface TextureTagEntry {
 export interface TextureTagsResponse {
   tags: Record<string, TextureMapType>;
   entries: Record<string, TextureTagEntry>;
+  warning?: string;
+  missing?: boolean;
 }
 
 export type TextureResizePreset = 256 | 512 | 1024 | 2048 | 4096;
@@ -124,6 +126,8 @@ export interface ConceptTagEntry {
 export interface ConceptTagsResponse {
   tags: Record<string, ConceptAssetRole>;
   entries: Record<string, ConceptTagEntry>;
+  warning?: string;
+  missing?: boolean;
 }
 
 export interface ProjectLink {

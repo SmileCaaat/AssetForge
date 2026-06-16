@@ -50,6 +50,8 @@ import {
 import { useFileManager } from "./hooks/useFileManager";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { copyPathToClipboard, resolveCopyPathTarget, resolveCurrentDirectoryPath } from "./lib/copyPath";
+import { clearThreeLoaderCache } from "./lib/threeCleanup";
+import { MaterialLabModal } from "./material-lab/MaterialLabModal";
 
 interface AppProps {
   workspace: WorkspaceResponse;
@@ -77,11 +79,15 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const [shortcuts, setShortcuts] = useState<ShortcutConfig>(DEFAULT_SHORTCUTS);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [galleryCollapsed, setGalleryCollapsed] = useState(false);
+  const [showMaterialLab, setShowMaterialLab] = useState(false);
   const [conceptTags, setConceptTags] = useState<Record<string, ConceptAssetRole>>({});
   const [textureTags, setTextureTags] = useState<Record<string, TextureMapType>>({});
   const [splitFile, setSplitFile] = useState<FileNode | null>(null);
   const [savingAll, setSavingAll] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [projectPathWarning, setProjectPathWarning] = useState<string | null>(null);
+  const projectLoadGeneration = useRef(0);
+  const notifyRef = useRef<(text: string, type?: "info" | "error") => void>(() => {});
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
 
@@ -96,60 +102,47 @@ export default function App({ workspace, onRefresh }: AppProps) {
     void fetchShortcuts().then(setShortcuts).catch(() => setShortcuts(DEFAULT_SHORTCUTS));
   }, []);
 
-  const reloadProjectFiles = useCallback(async () => {
+  const reloadProjectFiles = useCallback(async (generation?: number) => {
     if (!selectedProjectId) return;
+    if (!projects.some((p) => p.id === selectedProjectId)) return;
+    const gen = generation ?? projectLoadGeneration.current;
     try {
       const [treeRes, assetsRes] = await Promise.all([
         fetchProjectTree(selectedProjectId, side),
         fetchProjectAssets(selectedProjectId, side),
       ]);
+      if (gen !== projectLoadGeneration.current) return;
+
       setProjectRoot(treeRes.root);
       setTree(treeRes.tree);
       setAssets(assetsRes.assets);
+      setProjectPathWarning(treeRes.warning ?? assetsRes.warning ?? null);
 
       if (side === "concept") {
         const tagRes = await fetchConceptTags(selectedProjectId);
+        if (gen !== projectLoadGeneration.current) return;
         setConceptTags(tagRes.tags);
         setTextureTags({});
+        if (tagRes.warning) setProjectPathWarning(tagRes.warning);
       } else {
         const tagRes = await fetchTextureTags(selectedProjectId);
+        if (gen !== projectLoadGeneration.current) return;
         setTextureTags(tagRes.tags);
         setConceptTags({});
+        if (tagRes.warning) setProjectPathWarning(tagRes.warning);
       }
     } catch (error) {
+      if (gen !== projectLoadGeneration.current) return;
       setProjectRoot(null);
       setTree(null);
       setAssets([]);
       setConceptTags({});
       setTextureTags({});
       setSelectedFile(null);
+      setProjectPathWarning(String(error));
       throw error;
     }
-  }, [selectedProjectId, side]);
-
-  useEffect(() => {
-    if (!selectedProjectId) return;
-
-    let cancelled = false;
-    setLoadingProject(true);
-
-    reloadProjectFiles()
-      .then(() => {
-        if (!cancelled) setSelectedFile(null);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          console.error(error);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingProject(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedProjectId, side, reloadProjectFiles]);
+  }, [selectedProjectId, side, projects]);
 
   const fileManager = useFileManager({
     projectRoot,
@@ -158,6 +151,36 @@ export default function App({ workspace, onRefresh }: AppProps) {
     onRefresh: reloadProjectFiles,
     onSelect: setSelectedFile,
   });
+
+  notifyRef.current = fileManager.notify;
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    if (!projects.some((p) => p.id === selectedProjectId)) return;
+
+    const generation = ++projectLoadGeneration.current;
+    setSelectedFile(null);
+    setShowMaterialLab(false);
+    setTree(null);
+    setAssets([]);
+    setProjectRoot(null);
+    setConceptTags({});
+    setTextureTags({});
+    setProjectPathWarning(null);
+    clearThreeLoaderCache();
+    setLoadingProject(true);
+
+    reloadProjectFiles(generation)
+      .catch((error) => {
+        if (generation !== projectLoadGeneration.current) return;
+        notifyRef.current(String(error), "error");
+      })
+      .finally(() => {
+        if (generation === projectLoadGeneration.current) {
+          setLoadingProject(false);
+        }
+      });
+  }, [selectedProjectId, side, reloadProjectFiles, projects]);
 
   const lastAutoLinkedKeyRef = useRef("");
 
@@ -168,8 +191,8 @@ export default function App({ workspace, onRefresh }: AppProps) {
     if (lastAutoLinkedKeyRef.current === key) return;
     lastAutoLinkedKeyRef.current = key;
     const names = linked.map((p) => p.displayName).join("、");
-    fileManager.notify(`已自动关联 ${linked.length} 个项目：${names}`);
-  }, [workspace.autoLinked, fileManager]);
+    notifyRef.current(`已自动关联 ${linked.length} 个项目：${names}`);
+  }, [workspace.autoLinked]);
 
   useEffect(() => {
     if (selectedProjectId && projects.some((p) => p.id === selectedProjectId)) return;
@@ -498,6 +521,12 @@ export default function App({ workspace, onRefresh }: AppProps) {
                 <span title={selectedProject.blenderPath}>生产: {selectedProject.blenderPath}</span>
               </div>
 
+              {projectPathWarning && (
+                <div className="project-path-warning" role="status">
+                  {projectPathWarning}
+                </div>
+              )}
+
               <FileToolbar
                 shortcuts={shortcuts}
                 hasSelection={Boolean(selectedFile)}
@@ -515,6 +544,8 @@ export default function App({ workspace, onRefresh }: AppProps) {
                 onShowShortcuts={() => setShowShortcuts(true)}
                 galleryVisible={!galleryCollapsed}
                 onToggleGallery={() => setGalleryCollapsed((v) => !v)}
+                showMaterialLab={side === "blender"}
+                onOpenMaterialLab={() => setShowMaterialLab(true)}
               />
 
               {loadingProject ? (
@@ -580,6 +611,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
                       textureTags={side === "blender" ? textureTags : undefined}
                       markEnabled={side === "concept"}
                       textureMarkEnabled={side === "blender"}
+                      suspendThumbnails={loadingProject}
                       onHide={() => setGalleryCollapsed(true)}
                       onSelect={setSelectedFile}
                       onContextMenu={(e, node) => {
@@ -613,6 +645,8 @@ export default function App({ workspace, onRefresh }: AppProps) {
                       file={selectedFile}
                       project={selectedProject}
                       side={side}
+                      previewKey={`${selectedProjectId}-${side}`}
+                      suspendModelPreview={loadingProject}
                       onSplitImage={
                         side === "concept" && selectedFile && isImageFile(selectedFile)
                           ? setSplitFile
@@ -653,6 +687,16 @@ export default function App({ workspace, onRefresh }: AppProps) {
           )}
         </main>
       </div>
+
+      {showMaterialLab && selectedProject && side === "blender" && (
+        <MaterialLabModal
+          project={selectedProject}
+          projectRoot={projectRoot}
+          onClose={() => setShowMaterialLab(false)}
+          onNotify={(message, type) => fileManager.notify(message, type ?? "info")}
+          onRefreshProject={() => void reloadProjectFiles()}
+        />
+      )}
 
       {showNewProject && (
         <NewProjectModal

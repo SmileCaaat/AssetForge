@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatApiError } from "../api";
 import { pickDirectoryPath } from "../lib/pickDirectoryPath";
 import { isFileSystemAccessSupported } from "../lib/directoryPicker";
 
@@ -41,7 +42,7 @@ export function PathPickerField({
         onChange(result.path);
       }
     } catch (err) {
-      setError(String(err));
+      setError(formatApiError(err));
     } finally {
       setPicking(false);
     }

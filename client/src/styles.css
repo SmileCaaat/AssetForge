@@ -665,6 +665,17 @@ code {
   color: white;
 }
 
+.project-path-warning {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.08);
+  color: #fbbf24;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .project-paths {
   display: flex;
   gap: 20px;
@@ -2044,4 +2055,230 @@ code {
   color: #e55;
   font-size: 0.8rem;
   margin: 0;
+}
+
+/* Material Lab */
+.material-lab-overlay {
+  z-index: 120;
+  padding: 16px;
+  align-items: stretch;
+}
+
+.material-lab-modal {
+  width: min(1400px, calc(100vw - 32px));
+  height: min(900px, calc(100vh - 32px));
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.material-lab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.material-lab-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.material-lab-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.material-lab-dirty {
+  font-size: 0.75rem;
+  color: #fbbf24;
+}
+
+.material-lab-loading {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.material-lab-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 260px 1fr 280px;
+  gap: 12px;
+  padding: 12px;
+  min-height: 0;
+}
+
+.material-lab-col {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+}
+
+.material-lab-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  padding: 10px 12px;
+}
+
+.material-lab-panel h4 {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.material-lab-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.material-lab-panel-head h4 {
+  margin: 0;
+}
+
+.texture-slot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.texture-slot-item {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.texture-slot-item.missing {
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.texture-slot-type {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.texture-slot-file {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.texture-slot-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.texture-slot-actions {
+  margin-top: 10px;
+}
+
+.texture-slot-actions .preview-action-btn {
+  width: 100%;
+}
+
+.material-param-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+}
+
+.material-param-row input[type="range"] {
+  width: 120px;
+}
+
+.material-param-value {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: right;
+}
+
+.checkbox-row {
+  grid-template-columns: 1fr auto;
+}
+
+.material-lab-preview {
+  flex: 1;
+  min-height: 420px;
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #2a2f3a;
+}
+
+.material-lab-preview canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.material-lab-preview-hint {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+
+.check-item-list,
+.export-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+
+.check-item.check-error strong {
+  color: #f87171;
+}
+
+.check-item.check-warning strong {
+  color: #fbbf24;
+}
+
+.check-item.check-ok strong {
+  color: #4ade80;
+}
+
+@media (max-width: 1100px) {
+  .material-lab-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr;
+  }
+
+  .material-lab-preview {
+    min-height: 320px;
+  }
 }

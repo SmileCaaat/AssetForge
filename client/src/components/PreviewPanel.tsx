@@ -8,6 +8,8 @@ interface PreviewPanelProps {
   file: FileNode | null;
   project: ProjectLink;
   side: ProjectSide;
+  previewKey?: string;
+  suspendModelPreview?: boolean;
   onSplitImage?: (file: FileNode) => void;
   onMirrorImage?: (
     file: FileNode,
@@ -21,6 +23,8 @@ export function PreviewPanel({
   file,
   project,
   side,
+  previewKey,
+  suspendModelPreview = false,
   onSplitImage,
   onMirrorImage,
   onResizeTexture,
@@ -189,7 +193,16 @@ export function PreviewPanel({
       )}
 
       {isModelFile(file) && file.extension && (
-        <ModelViewer ref={modelViewerRef} filePath={file.path} extension={file.extension} />
+        suspendModelPreview ? (
+          <div className="preview-fallback muted">项目加载中，3D 预览已暂停…</div>
+        ) : (
+          <ModelViewer
+            key={`${previewKey ?? "preview"}-${file.path}`}
+            ref={modelViewerRef}
+            filePath={file.path}
+            extension={file.extension}
+          />
+        )
       )}
 
       {isBlendFile(file) && (

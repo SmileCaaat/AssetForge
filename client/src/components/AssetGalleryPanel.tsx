@@ -13,6 +13,7 @@ interface AssetGalleryPanelProps {
   textureTags?: Record<string, TextureMapType>;
   markEnabled: boolean;
   textureMarkEnabled: boolean;
+  suspendThumbnails?: boolean;
   onHide: () => void;
   onSelect: (node: FileNode) => void;
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
@@ -30,6 +31,7 @@ export function AssetGalleryPanel({
   textureTags,
   markEnabled,
   textureMarkEnabled,
+  suspendThumbnails = false,
   onHide,
   onSelect,
   onContextMenu,
@@ -96,6 +98,7 @@ export function AssetGalleryPanel({
           assets={assets}
           selectedPath={selectedPath}
           cutPath={cutPath}
+          suspendThumbnails={suspendThumbnails}
           conceptTags={conceptTags}
           textureTags={textureTags}
           onSelect={onSelect}

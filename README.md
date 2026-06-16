@@ -35,7 +35,17 @@ npm start
 
 ---
 
-## 功能概览 (v0.4)
+## 功能概览 (v0.5)
+
+> Material Lab 进度见 [AssetManagerTools_MaterialLab_AICODING.md](./AssetManagerTools_MaterialLab_AICODING.md) **「零、实现状态」**（阶段 A 已完成；阶段 B Slang、阶段 D 预览精调为后续）。
+
+### 更新代码
+
+```powershell
+.\update.ps1   # 或双击 update.bat
+```
+
+从 GitHub 拉取当前分支更新；`package-lock.json` 变更时会自动 `npm install`。再运行 `start.bat` 启动。
 
 ### 工作区
 
@@ -84,6 +94,18 @@ npm start
 - **FBX**：Three.js 预览，默认正视图；自动播放内嵌动画；**多动画 FBX 可在工具栏切换 clip 播放**
 - **Blend**：提示在 `renders/` 查看渲染图
 
+### 材质实验室（Material Lab，生产侧）
+
+在生产视图工具栏点击 **「材质实验室」** 打开全屏 Modal：
+
+- 自动读取 `blender_texture_tags.json` 填充贴图槽
+- Toon 参数实时预览（FBX + BaseColor，近似 Unity 效果）
+- 保存 `.asset-manager/material_lab.json`
+- **合并 Metallic + Roughness** → `T_<Name>_MetallicSmoothness.png`（R=Metallic, A=Smoothness）
+- **检查 Unity 贴图规范**
+- **导出 Unity 材质包** 到 `<生产项目>/unity/`（Shader、fallback HLSL、material.json、导入脚本、README）
+- **尚未实现**：Slang `slangc` 编译（阶段 B）；Normal 光照 / Outline Pass / Matcap 预览（阶段 D）— 见 Material Lab 开发说明
+
 ---
 
 ## 总工作区目录结构
@@ -119,6 +141,7 @@ npm start
 | `data/shortcuts.json` | 快捷键配置 |
 | `<概念项目>/.asset-manager/concept_tags.json` | 概念资产标记 |
 | `<生产项目>/.asset-manager/blender_texture_tags.json` | 纹理贴图类型标记 |
+| `<生产项目>/.asset-manager/material_lab.json` | Material Lab 状态（生产侧） |
 
 「保存」会刷盘以上全部 JSON，并对各项目同步标签与磁盘文件名。
 
@@ -152,6 +175,10 @@ npm start
 | GET/PUT | `/api/projects/:id/...` | 项目 CRUD、文件树、资产列表 |
 | GET/POST | `/api/projects/:id/concept-tags` | 读取 / 标记概念资产 |
 | GET/POST | `/api/projects/:id/texture-tags` | 读取 / 标记生产纹理 |
+| GET/PUT | `/api/projects/:id/material-lab` | Material Lab 状态读写 |
+| POST | `/api/projects/:id/material-lab/merge-metallic-smoothness` | 合并 Metallic + Roughness |
+| POST | `/api/projects/:id/material-lab/check` | Unity 贴图规范检查 |
+| POST | `/api/projects/:id/material-lab/export-unity` | 导出 Unity 材质包 |
 | POST | `/api/images/resize` | 纹理尺寸转换 |
 | POST | `/api/images/mirror` | 概念图片镜像保存 |
 | POST | `/api/fs/*` | 重命名、删除、复制、移动、导入、图片分割等 |
@@ -163,13 +190,14 @@ npm start
 
 ```
 Asset ManagerTools/
-├── start.bat / start.ps1    # 一键启动（自动生成 AssetManager.lnk 带图标快捷方式）
-├── create-launcher.bat      # 手动创建带图标的启动快捷方式
-├── assets/                  # 应用图标 (app-icon.ico / .png)
-├── server/                  # Express API (tsx / dist)
-├── client/                  # React + Vite + Three.js 前端
-│   └── public/              # favicon、manifest
-├── data/                    # 运行时 JSON 配置
+├── start.bat / start.ps1    # 一键启动
+├── update.bat / update.ps1  # Git 拉取更新 + 依赖安装
+├── create-launcher.bat      # 带图标启动快捷方式
+├── assets/
+├── server/
+├── client/
+├── data/                    # 运行时 JSON（gitignore，各机器本地）
+├── AssetManagerTools_MaterialLab_AICODING.md
 ├── Asset_Pipeline_Standard.md
 └── README.md
 ```

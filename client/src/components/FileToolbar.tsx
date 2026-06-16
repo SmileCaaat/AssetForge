@@ -18,6 +18,8 @@ interface FileToolbarProps {
   onShowShortcuts: () => void;
   galleryVisible?: boolean;
   onToggleGallery?: () => void;
+  showMaterialLab?: boolean;
+  onOpenMaterialLab?: () => void;
 }
 
 export function FileToolbar({
@@ -37,6 +39,8 @@ export function FileToolbar({
   onShowShortcuts,
   galleryVisible = true,
   onToggleGallery,
+  showMaterialLab = false,
+  onOpenMaterialLab,
 }: FileToolbarProps) {
   const canModify = hasSelection && !isRoot;
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -95,6 +99,14 @@ export function FileToolbar({
         >
           {galleryVisible ? "隐藏画廊" : "显示画廊"}
         </button>
+      )}
+      {showMaterialLab && onOpenMaterialLab && (
+        <>
+          <span className="toolbar-sep" />
+          <button type="button" onClick={onOpenMaterialLab} title="打开材质实验室（仅生产项目）">
+            材质实验室
+          </button>
+        </>
       )}
       <button title={formatShortcut(shortcuts.refresh)} onClick={onRefresh}>
         刷新

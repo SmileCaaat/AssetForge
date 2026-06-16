@@ -11,6 +11,7 @@ interface AssetGalleryProps {
   assets: FileNode[];
   selectedPath?: string;
   cutPath?: string | null;
+  suspendThumbnails?: boolean;
   conceptTags?: Record<string, ConceptAssetRole>;
   textureTags?: Record<string, TextureMapType>;
   onSelect: (node: FileNode) => void;
@@ -31,6 +32,7 @@ export function AssetGallery({
   assets,
   selectedPath,
   cutPath,
+  suspendThumbnails = false,
   conceptTags,
   textureTags,
   onSelect,
@@ -84,7 +86,11 @@ export function AssetGallery({
           >
             <div className="asset-thumb">
               {isImageFile(asset) ? (
-                <img src={fileUrl(asset.path)} alt={asset.name} loading="lazy" />
+                suspendThumbnails ? (
+                  <div className="model-placeholder">…</div>
+                ) : (
+                  <img src={fileUrl(asset.path)} alt={asset.name} loading="lazy" />
+                )
               ) : isModelFile(asset) ? (
                 <div className="model-placeholder">3D</div>
               ) : (

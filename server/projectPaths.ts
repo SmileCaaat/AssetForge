@@ -23,6 +23,18 @@ async function pathExists(target: string): Promise<boolean> {
   }
 }
 
+export { pathExists };
+
+export async function resolveProjectRootWithStatus(
+  workspace: MasterWorkspace,
+  project: ProjectLink,
+  side: "concept" | "blender",
+): Promise<{ root: string; exists: boolean }> {
+  const root = await resolveProjectPathAccessible(workspace, project, side);
+  const exists = await pathExists(root);
+  return { root, exists };
+}
+
 function toRelativePosix(root: string, absolute: string): string {
   return path.relative(root, absolute).split(path.sep).join("/");
 }

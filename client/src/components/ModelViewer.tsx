@@ -14,6 +14,7 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { SkeletonUtils } from "three-stdlib";
 import * as THREE from "three";
 import { fileUrl } from "../api";
+import { clearThreeLoaderCache, disposeObject3D } from "../lib/threeCleanup";
 
 function collectSceneBounds(scene: THREE.Object3D): THREE.Box3 {
   const box = new THREE.Box3();
@@ -156,6 +157,12 @@ function ModelScene({
   const fbx = useMemo(() => SkeletonUtils.clone(cachedFbx) as THREE.Group, [cachedFbx, url]);
   const { camera, scene } = useThree();
 
+  useEffect(() => {
+    return () => {
+      disposeObject3D(fbx);
+    };
+  }, [fbx]);
+
   const resetToFrontView = useCallback(() => {
     const controls = controlsRef.current;
     if (!controls) return;
@@ -227,6 +234,9 @@ export const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(funct
   useEffect(() => {
     setClipNames([]);
     setSelectedClip(null);
+    return () => {
+      clearThreeLoaderCache();
+    };
   }, [url]);
 
   const handleClipsLoaded = useCallback((names: string[], suggestedName: string | null) => {
@@ -278,7 +288,13 @@ export const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(funct
         </div>
       )}
       <div className="model-viewer">
-        <Canvas camera={{ position: [2, 2, 2], fov: 45 }} shadows>
+        <Canvas
+          key={url}
+          camera={{ position: [2, 2, 2], fov: 45 }}
+          shadows
+          gl={{ antialias: true, powerPreference: "default" }}
+          frameloop="always"
+        >
           <color attach="background" args={["#1a1d24"]} />
           <ambientLight intensity={0.6} />
           <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />

@@ -12,19 +12,48 @@ import type {
 } from "./types";
 import type { ShortcutConfig } from "./config/shortcuts";
 
+const DEV_API_DIRECT = "http://localhost:3456";
+
+function isLocalDevHost(): boolean {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1";
+}
+
+function canFallbackToDirectApi(url: string): boolean {
+  return isLocalDevHost() && url.startsWith("/api");
+}
+
+async function fetchWithDevFallback(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    if (!canFallbackToDirectApi(url)) throw error;
+    return fetch(`${DEV_API_DIRECT}${url}`, init);
+  }
+}
+
+export function formatApiError(error: unknown): string {
+  const msg = error instanceof Error ? error.message : String(error);
+  if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+    return "无法连接后端 API（http://localhost:3456）。请确认 start.bat / npm run dev 正在运行；若终端里 dev:client 已退出，请关闭窗口后重新启动。";
+  }
+  return msg;
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const res = await fetchWithDevFallback(url, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed: ${res.status}`);
+    throw new Error(body.error || body.message || `Request failed: ${res.status}`);
   }
   return res.json();
 }
 
 export function fileUrl(filePath: string, cacheBust?: string | number): string {
-  const base = `/api/files?path=${encodeURIComponent(filePath)}`;
-  if (cacheBust === undefined) return base;
-  return `${base}&v=${encodeURIComponent(String(cacheBust))}`;
+  const params = new URLSearchParams({ path: filePath });
+  if (cacheBust !== undefined) params.set("v", String(cacheBust));
+  return `/api/files?${params.toString()}`;
 }
 
 export function fetchWorkspace(): Promise<WorkspaceResponse> {
@@ -103,14 +132,14 @@ export function deleteProject(id: string, deleteFolders: boolean): Promise<{ ok:
 export function fetchProjectTree(
   projectId: string,
   side: ProjectSide,
-): Promise<{ root: string; tree: FileNode | null }> {
+): Promise<{ root: string; tree: FileNode | null; warning?: string; missing?: boolean }> {
   return request(`/api/projects/${projectId}/tree?side=${side}`);
 }
 
 export function fetchProjectAssets(
   projectId: string,
   side: ProjectSide,
-): Promise<{ root: string; assets: FileNode[] }> {
+): Promise<{ root: string; assets: FileNode[]; warning?: string; missing?: boolean }> {
   return request(`/api/projects/${projectId}/assets?side=${side}`);
 }
 
