@@ -1438,9 +1438,64 @@ code {
   border-radius: 8px;
 }
 
+.model-viewer-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+  gap: 8px;
+}
+
+.fbx-animation-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+
+.fbx-animation-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.fbx-animation-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fbx-animation-btn {
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fbx-animation-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.fbx-animation-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: #93c5fd;
+}
+
 .model-viewer {
   flex: 1;
-  min-height: 320px;
+  min-height: 280px;
   position: relative;
 }
 

@@ -6,6 +6,7 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Center, Environment, OrbitControls, useAnimations, useFBX } from "@react-three/drei";
@@ -75,12 +76,33 @@ function pickAnimationClip(animations: THREE.AnimationClip[], sourceUrl: string)
   return animations[0];
 }
 
-function AnimatedFbx({ sourceUrl, object }: { sourceUrl: string; object: THREE.Group }) {
+function AnimatedFbx({
+  sourceUrl,
+  object,
+  selectedClipName,
+  onClipsLoaded,
+}: {
+  sourceUrl: string;
+  object: THREE.Group;
+  selectedClipName: string | null;
+  onClipsLoaded: (clipNames: string[], suggestedName: string | null) => void;
+}) {
   const { actions, mixer } = useAnimations(object.animations, object);
-  const activeClip = useMemo(
-    () => pickAnimationClip(object.animations, sourceUrl),
-    [object.animations, sourceUrl],
-  );
+  const activeClip = useMemo(() => {
+    if (selectedClipName) {
+      const matched = object.animations.find((clip) => clip.name === selectedClipName);
+      if (matched) return matched;
+    }
+    return pickAnimationClip(object.animations, sourceUrl);
+  }, [object.animations, selectedClipName, sourceUrl]);
+
+  useEffect(() => {
+    const suggested = pickAnimationClip(object.animations, sourceUrl);
+    onClipsLoaded(
+      object.animations.map((clip) => clip.name),
+      suggested?.name ?? object.animations[0]?.name ?? null,
+    );
+  }, [object.animations, onClipsLoaded, sourceUrl]);
 
   useEffect(() => {
     object.traverse((child) => {
@@ -121,10 +143,14 @@ function ModelScene({
   url,
   controlsRef,
   onRegister,
+  selectedClipName,
+  onClipsLoaded,
 }: {
   url: string;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   onRegister: (reset: () => void) => void;
+  selectedClipName: string | null;
+  onClipsLoaded: (clipNames: string[], suggestedName: string | null) => void;
 }) {
   const cachedFbx = useFBX(url);
   const fbx = useMemo(() => SkeletonUtils.clone(cachedFbx) as THREE.Group, [cachedFbx, url]);
@@ -168,7 +194,12 @@ function ModelScene({
 
   return (
     <>
-      <AnimatedFbx sourceUrl={url} object={fbx} />
+      <AnimatedFbx
+        sourceUrl={url}
+        object={fbx}
+        selectedClipName={selectedClipName}
+        onClipsLoaded={onClipsLoaded}
+      />
       <Environment preset="city" />
     </>
   );
@@ -190,6 +221,21 @@ export const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(funct
   const url = useMemo(() => fileUrl(filePath), [filePath]);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const resetFrontViewRef = useRef<(() => void) | null>(null);
+  const [clipNames, setClipNames] = useState<string[]>([]);
+  const [selectedClip, setSelectedClip] = useState<string | null>(null);
+
+  useEffect(() => {
+    setClipNames([]);
+    setSelectedClip(null);
+  }, [url]);
+
+  const handleClipsLoaded = useCallback((names: string[], suggestedName: string | null) => {
+    setClipNames(names);
+    setSelectedClip((prev) => {
+      if (prev && names.includes(prev)) return prev;
+      return suggestedName ?? names[0] ?? null;
+    });
+  }, []);
 
   useImperativeHandle(ref, () => ({
     resetFrontView: () => {
@@ -210,16 +256,45 @@ export const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(funct
   }
 
   return (
-    <div className="model-viewer">
-      <Canvas camera={{ position: [2, 2, 2], fov: 45 }} shadows>
-        <color attach="background" args={["#1a1d24"]} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
-        <Suspense fallback={null}>
-          <ModelScene key={url} url={url} controlsRef={controlsRef} onRegister={registerReset} />
-        </Suspense>
-        <OrbitControls ref={controlsRef} makeDefault />
-      </Canvas>
+    <div className="model-viewer-wrap">
+      {clipNames.length > 1 && (
+        <div className="fbx-animation-toolbar">
+          <span className="fbx-animation-label">
+            动画 ({clipNames.length})
+          </span>
+          <div className="fbx-animation-options">
+            {clipNames.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className={`fbx-animation-btn ${selectedClip === name ? "active" : ""}`}
+                title={name}
+                onClick={() => setSelectedClip(name)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="model-viewer">
+        <Canvas camera={{ position: [2, 2, 2], fov: 45 }} shadows>
+          <color attach="background" args={["#1a1d24"]} />
+          <ambientLight intensity={0.6} />
+          <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
+          <Suspense fallback={null}>
+            <ModelScene
+              key={url}
+              url={url}
+              controlsRef={controlsRef}
+              onRegister={registerReset}
+              selectedClipName={selectedClip}
+              onClipsLoaded={handleClipsLoaded}
+            />
+          </Suspense>
+          <OrbitControls ref={controlsRef} makeDefault />
+        </Canvas>
+      </div>
     </div>
   );
 });
