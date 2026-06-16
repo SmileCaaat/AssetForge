@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ConceptAssetRole, FileNode, ProjectLink, ProjectSide, WorkspaceResponse } from "./types";
-import { CONCEPT_ROLE_LABELS } from "./types";
+import type {
+  ConceptAssetRole,
+  FileNode,
+  ProjectLink,
+  ProjectSide,
+  TextureMapType,
+  TextureResizePreset,
+  WorkspaceResponse,
+} from "./types";
+import { CONCEPT_ROLE_LABELS, TEXTURE_TYPE_LABELS } from "./types";
 import {
   createMasterWorkspace,
   createProject,
@@ -9,9 +17,13 @@ import {
   fetchProjectAssets,
   fetchProjectTree,
   fetchShortcuts,
+  fetchTextureTags,
   importFilesToDirectory,
   isImageFile,
   markConceptAsset,
+  markTextureMap,
+  mirrorImageFile,
+  resizeTextureImage,
   openMasterWorkspace,
   saveAllData,
   switchActiveWorkspace,
@@ -66,6 +78,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [galleryCollapsed, setGalleryCollapsed] = useState(false);
   const [conceptTags, setConceptTags] = useState<Record<string, ConceptAssetRole>>({});
+  const [textureTags, setTextureTags] = useState<Record<string, TextureMapType>>({});
   const [splitFile, setSplitFile] = useState<FileNode | null>(null);
   const [savingAll, setSavingAll] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -85,19 +98,32 @@ export default function App({ workspace, onRefresh }: AppProps) {
 
   const reloadProjectFiles = useCallback(async () => {
     if (!selectedProjectId) return;
-    const [treeRes, assetsRes] = await Promise.all([
-      fetchProjectTree(selectedProjectId, side),
-      fetchProjectAssets(selectedProjectId, side),
-    ]);
-    setProjectRoot(treeRes.root);
-    setTree(treeRes.tree);
-    setAssets(assetsRes.assets);
+    try {
+      const [treeRes, assetsRes] = await Promise.all([
+        fetchProjectTree(selectedProjectId, side),
+        fetchProjectAssets(selectedProjectId, side),
+      ]);
+      setProjectRoot(treeRes.root);
+      setTree(treeRes.tree);
+      setAssets(assetsRes.assets);
 
-    if (side === "concept") {
-      const tagRes = await fetchConceptTags(selectedProjectId);
-      setConceptTags(tagRes.tags);
-    } else {
+      if (side === "concept") {
+        const tagRes = await fetchConceptTags(selectedProjectId);
+        setConceptTags(tagRes.tags);
+        setTextureTags({});
+      } else {
+        const tagRes = await fetchTextureTags(selectedProjectId);
+        setTextureTags(tagRes.tags);
+        setConceptTags({});
+      }
+    } catch (error) {
+      setProjectRoot(null);
+      setTree(null);
+      setAssets([]);
       setConceptTags({});
+      setTextureTags({});
+      setSelectedFile(null);
+      throw error;
     }
   }, [selectedProjectId, side]);
 
@@ -111,7 +137,11 @@ export default function App({ workspace, onRefresh }: AppProps) {
       .then(() => {
         if (!cancelled) setSelectedFile(null);
       })
-      .catch(console.error)
+      .catch((error) => {
+        if (!cancelled) {
+          console.error(error);
+        }
+      })
       .finally(() => {
         if (!cancelled) setLoadingProject(false);
       });
@@ -157,6 +187,10 @@ export default function App({ workspace, onRefresh }: AppProps) {
           const tagRes = await fetchConceptTags(selectedProjectId);
           setConceptTags(tagRes.tags);
         }
+        if (side === "blender" && selectedProjectId) {
+          const tagRes = await fetchTextureTags(selectedProjectId);
+          setTextureTags(tagRes.tags);
+        }
         if (!silent) {
           fileManager.notify(`已保存 ${result.files.length} 个 JSON 配置文件`);
         }
@@ -187,6 +221,59 @@ export default function App({ workspace, onRefresh }: AppProps) {
         relativePath: result.relativePath,
       });
       fileManager.notify(`已标记为${CONCEPT_ROLE_LABELS[role]}: ${result.name}`);
+    } catch (error) {
+      fileManager.notify(String(error), "error");
+    }
+  };
+
+  const handleMarkTexture = async (node: FileNode, type: TextureMapType) => {
+    if (!selectedProjectId) return;
+    try {
+      const result = await markTextureMap(selectedProjectId, node.path, type);
+      await reloadProjectFiles();
+      setSelectedFile({
+        ...node,
+        path: result.path,
+        name: result.name,
+        relativePath: result.relativePath,
+      });
+      fileManager.notify(`已标记为 ${TEXTURE_TYPE_LABELS[type]}: ${result.name}`);
+    } catch (error) {
+      fileManager.notify(String(error), "error");
+    }
+  };
+
+  const handleResizeTexture = async (node: FileNode, size: TextureResizePreset) => {
+    try {
+      const result = await resizeTextureImage(node.path, size);
+      await reloadProjectFiles();
+      setSelectedFile({
+        ...node,
+        path: result.path,
+        size: result.fileSize,
+      });
+      fileManager.notify(`已转换为 ${result.width}×${result.height}`);
+    } catch (error) {
+      fileManager.notify(String(error), "error");
+    }
+  };
+
+  const handleMirrorImage = async (
+    node: FileNode,
+    horizontal: boolean,
+    vertical: boolean,
+  ) => {
+    try {
+      const result = await mirrorImageFile(node.path, horizontal, vertical);
+      await reloadProjectFiles();
+      setSelectedFile({
+        ...node,
+        path: result.path,
+        size: result.fileSize,
+        modifiedAt: new Date().toISOString(),
+      });
+      const axes = [horizontal && "水平", vertical && "垂直"].filter(Boolean).join("、");
+      fileManager.notify(`已保存镜像（${axes}）: ${node.name}`);
     } catch (error) {
       fileManager.notify(String(error), "error");
     }
@@ -357,6 +444,8 @@ export default function App({ workspace, onRefresh }: AppProps) {
         onOpenWorkspace={() => setShowOpenMasterWorkspace(true)}
         onSwitchWorkspace={(id) => void handleSwitchWorkspace(id)}
         onSaveAll={() => void handleSaveAll(false)}
+        onRefreshProject={() => void reloadProjectFiles()}
+        canRefreshProject={Boolean(selectedProjectId)}
         saving={savingAll}
         lastSavedAt={lastSavedAt}
       />
@@ -458,6 +547,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
                           : null
                       }
                       conceptTags={side === "concept" ? conceptTags : undefined}
+                      textureTags={side === "blender" ? textureTags : undefined}
                       onSelect={setSelectedFile}
                       onContextMenu={(e, node) => {
                         setSelectedFile(node);
@@ -487,7 +577,9 @@ export default function App({ workspace, onRefresh }: AppProps) {
                           : null
                       }
                       conceptTags={side === "concept" ? conceptTags : undefined}
+                      textureTags={side === "blender" ? textureTags : undefined}
                       markEnabled={side === "concept"}
+                      textureMarkEnabled={side === "blender"}
                       onHide={() => setGalleryCollapsed(true)}
                       onSelect={setSelectedFile}
                       onContextMenu={(e, node) => {
@@ -498,6 +590,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
                         openBackgroundContextMenu(e, ".asset-card");
                       }}
                       onMarkAsset={(node, role) => void handleMarkAsset(node, role)}
+                      onMarkTexture={(node, type) => void handleMarkTexture(node, type)}
                     />
                   )}
 
@@ -523,6 +616,17 @@ export default function App({ workspace, onRefresh }: AppProps) {
                       onSplitImage={
                         side === "concept" && selectedFile && isImageFile(selectedFile)
                           ? setSplitFile
+                          : undefined
+                      }
+                      onMirrorImage={
+                        side === "concept" && selectedFile && isImageFile(selectedFile)
+                          ? (node, horizontal, vertical) =>
+                              handleMirrorImage(node, horizontal, vertical)
+                          : undefined
+                      }
+                      onResizeTexture={
+                        side === "blender" && selectedFile && isImageFile(selectedFile)
+                          ? (node, size) => handleResizeTexture(node, size)
                           : undefined
                       }
                     />

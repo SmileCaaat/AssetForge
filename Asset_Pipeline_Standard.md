@@ -327,15 +327,18 @@ bpy.ops.export_scene.fbx(
 | 规范章节 | 工具能力 |
 |---|---|
 | 2.6 概念工作区命名 | 画廊「立绘 / 多视图 / 高模 / 低模」按钮，标记 + 自动重命名 |
-| 1 生产目录结构 | Blender 侧文件树浏览；未关联目录检测与关联 |
-| 3 Mixamo 动画 FBX | FBX 预览，自动播放内嵌动画；`animations/mixamo/*.fbx` 可直接预览 |
-| 4 贴图 | 概念/生产侧 PNG 预览；概念侧图片分割导出 |
-| 2.5 导出 FBX | 生产侧 `exports/*.fbx` 预览（带 Action 的模型可看到动画） |
+| 2.3 贴图命名 `T_<Name>_<Type>` | 生产画廊纹理类型按钮（BaseColor、Normal 等 12 类），标记 + 自动重命名 |
+| 2.3 `textures/source/` | 新建 Blender 项目自动创建；原始贴图放此目录后可在工具内标记规范化 |
+| 1 生产目录结构 | Blender 侧文件树浏览；打开工作区时自动关联概念/生产项目 |
+| 3 Mixamo 动画 FBX | FBX 预览，按文件名匹配动画 clip 并自动播放 |
+| 4 贴图 | 生产侧预览 + 256~4096 尺寸转换；概念侧镜像、图片分割导出 |
+| 2.5 导出 FBX | 生产侧 `exports/*.fbx` 预览 |
 
 **数据文件：**
 
 - `data/workspace.json` — 工作区与项目关联
 - `<概念项目>/.asset-manager/concept_tags.json` — 概念标记
+- `<生产项目>/.asset-manager/blender_texture_tags.json` — 纹理类型标记
 - `data/shortcuts.json` — 快捷键
 
 工具内「保存」或每 5 分钟自动保存会刷盘上述 JSON。

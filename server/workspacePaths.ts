@@ -1,6 +1,7 @@
 import path from "path";
 import type { AppState, MasterWorkspace, OpenFolderTarget } from "./types.js";
 import { BLENDER_WORKSPACE_FOLDER, CONCEPT_WORKSPACE_FOLDER } from "./types.js";
+import { resolveProjectPath } from "./scanner.js";
 
 export function getConceptRoot(workspace: MasterWorkspace): string {
   if (workspace.conceptRoot) return workspace.conceptRoot;
@@ -20,16 +21,35 @@ export function getActiveWorkspace(state: AppState): MasterWorkspace {
   return workspace;
 }
 
+function addRoot(roots: Set<string>, candidate?: string): void {
+  if (!candidate?.trim()) return;
+  roots.add(path.resolve(candidate.trim()));
+}
+
+export function collectWorkspaceRoots(workspace: MasterWorkspace): string[] {
+  const roots = new Set<string>();
+  addRoot(roots, workspace.rootPath);
+  addRoot(roots, getConceptRoot(workspace));
+  addRoot(roots, getBlenderRoot(workspace));
+
+  for (const project of workspace.projects) {
+    addRoot(roots, resolveProjectPath(workspace, project, "concept"));
+    addRoot(roots, resolveProjectPath(workspace, project, "blender"));
+  }
+
+  return [...roots];
+}
+
 export function getAllowedRoots(state: AppState): string[] {
-  const workspace = getActiveWorkspace(state);
-  return [getConceptRoot(workspace), getBlenderRoot(workspace)];
+  return collectWorkspaceRoots(getActiveWorkspace(state));
 }
 
 export function getAllAllowedRoots(state: AppState): string[] {
   const roots = new Set<string>();
   for (const workspace of state.workspaces) {
-    roots.add(getConceptRoot(workspace));
-    roots.add(getBlenderRoot(workspace));
+    for (const root of collectWorkspaceRoots(workspace)) {
+      roots.add(root);
+    }
   }
   return [...roots];
 }

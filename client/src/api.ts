@@ -5,6 +5,9 @@ import type {
   OpenFolderTarget,
   ProjectLink,
   ProjectSide,
+  TextureMapType,
+  TextureResizePreset,
+  TextureTagsResponse,
   WorkspaceResponse,
 } from "./types";
 import type { ShortcutConfig } from "./config/shortcuts";
@@ -18,8 +21,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export function fileUrl(filePath: string): string {
-  return `/api/files?path=${encodeURIComponent(filePath)}`;
+export function fileUrl(filePath: string, cacheBust?: string | number): string {
+  const base = `/api/files?path=${encodeURIComponent(filePath)}`;
+  if (cacheBust === undefined) return base;
+  return `${base}&v=${encodeURIComponent(String(cacheBust))}`;
 }
 
 export function fetchWorkspace(): Promise<WorkspaceResponse> {
@@ -122,6 +127,45 @@ export function markConceptAsset(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filePath, role }),
+  });
+}
+
+export function fetchTextureTags(projectId: string): Promise<TextureTagsResponse> {
+  return request<TextureTagsResponse>(`/api/projects/${projectId}/texture-tags`);
+}
+
+export function markTextureMap(
+  projectId: string,
+  filePath: string,
+  type: TextureMapType,
+): Promise<{ path: string; name: string; type: TextureMapType; relativePath: string }> {
+  return request(`/api/projects/${projectId}/mark-texture`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filePath, type }),
+  });
+}
+
+export function resizeTextureImage(
+  filePath: string,
+  size: TextureResizePreset,
+): Promise<{ path: string; width: number; height: number; fileSize: number }> {
+  return request("/api/images/resize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: filePath, size }),
+  });
+}
+
+export function mirrorImageFile(
+  filePath: string,
+  horizontal: boolean,
+  vertical: boolean,
+): Promise<{ path: string; width: number; height: number; fileSize: number }> {
+  return request("/api/images/mirror", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: filePath, horizontal, vertical }),
   });
 }
 

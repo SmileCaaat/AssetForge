@@ -35,15 +35,17 @@ npm start
 
 ---
 
-## 功能概览 (v0.3)
+## 功能概览 (v0.4)
 
 ### 工作区
 
 - **多总工作区**：下拉切换、打开已有工作区、新建空白工作区
-- **路径选择**：浏览器目录选择器 + 外部文件夹拖入导入（无需手输路径）
-- **未关联检测**：自动发现 Concept / Blender 中未关联的目录，并提供一键关联建议
-- **打开文件夹**：顶部菜单可打开根目录 / ConceptWorkspace / BlenderWorkspace（系统资源管理器）
-- **保存**：顶部「保存」按钮写入全部 JSON；每 5 分钟自动保存
+- **自动关联项目**：打开 / 切换 / 刷新工作区时，按名称自动匹配概念与生产目录并写入 `workspace.json`
+- **路径自愈**：项目登记名与磁盘文件夹不一致时（如 `Punchgob庞哥布` ↔ `Punchgob`）自动纠正
+- **路径选择**：浏览器目录选择器 + 系统文件夹对话框（无需手输路径）
+- **打开文件夹**：顶部菜单可打开根目录 / ConceptWorkspace / BlenderWorkspace
+- **保存 / 刷新**：顶部「保存」刷盘全部 JSON；「刷新」重新扫描当前项目；每 5 分钟自动保存
+- **在线资源**：顶部「在线资源」一键跳转 TextureWiz、混元 3D、Mixamo 等站点
 
 ### 项目与文件
 
@@ -52,7 +54,7 @@ npm start
 - **文件操作**：新建文件夹、重命名、复制、剪切、粘贴、删除
 - **导入**：工具栏或拖入外部文件到当前目录
 - **右键菜单**：复制路径 / 复制当前目录路径
-- **图片分割**（概念侧）：宫格分割、拖动分割线、导出到 `{原名}_split/1.png…`
+- **文本复制**：页面内选中文字可用 Ctrl+C 正常复制；文件快捷键仅在选中文件时生效
 
 ### 概念资产标记（概念侧）
 
@@ -67,10 +69,19 @@ npm start
 
 标签数据保存在各概念项目 `.asset-manager/concept_tags.json`。
 
+### 纹理贴图标记（生产侧）
+
+生产视图画廊提供纹理类型按钮，**一键重命名**为 `T_{项目名}_{类型}.{ext}`：
+
+`BaseColor` · `Roughness` · `Metallic` · `Normal` · `AO` · `Height` · `Edge` · `Detection` · `Alpha` · `Bump` · `Curvature` · `Emission`
+
+原始贴图建议放在 `textures/source/`；标记元数据写入 `.asset-manager/blender_texture_tags.json`。
+
 ### 预览
 
-- **图片**：内嵌预览
-- **FBX**：Three.js 预览，默认正视图，支持 OrbitControls 旋转；**自动播放**模型内嵌动画（静态网格无动画则不动）
+- **图片**（概念侧）：内嵌预览；**水平/垂直镜像**预览与保存；**图片分割**导出宫格
+- **图片**（生产侧）：内嵌预览；**纹理尺寸**一键转换为 256 / 512 / 1024 / 2048 / 4096
+- **FBX**：Three.js 预览，默认正视图，自动播放内嵌动画
 - **Blend**：提示在 `renders/` 查看渲染图
 
 ---
@@ -87,6 +98,10 @@ npm start
 │       └── …
 └── BlenderWorkspace/            # Blender 生产
     ├── projects/
+    │   └── <项目名>/
+    │       ├── textures/
+    │       │   └── source/      # 原始贴图（新建项目自动创建）
+    │       └── …
     ├── assets/
     ├── docs/
     └── tools/
@@ -103,8 +118,9 @@ npm start
 | `data/workspace.json` | 工作区列表、活动工作区、项目关联 |
 | `data/shortcuts.json` | 快捷键配置 |
 | `<概念项目>/.asset-manager/concept_tags.json` | 概念资产标记 |
+| `<生产项目>/.asset-manager/blender_texture_tags.json` | 纹理贴图类型标记 |
 
-「保存」会刷盘以上全部 JSON，并对各概念项目同步标签与磁盘文件名。
+「保存」会刷盘以上全部 JSON，并对各项目同步标签与磁盘文件名。
 
 ---
 
@@ -135,6 +151,9 @@ npm start
 | POST | `/api/save-all` | 保存全部 JSON |
 | GET/PUT | `/api/projects/:id/...` | 项目 CRUD、文件树、资产列表 |
 | GET/POST | `/api/projects/:id/concept-tags` | 读取 / 标记概念资产 |
+| GET/POST | `/api/projects/:id/texture-tags` | 读取 / 标记生产纹理 |
+| POST | `/api/images/resize` | 纹理尺寸转换 |
+| POST | `/api/images/mirror` | 概念图片镜像保存 |
 | POST | `/api/fs/*` | 重命名、删除、复制、移动、导入、图片分割等 |
 | GET | `/api/files?path=` | 静态文件（预览用） |
 
@@ -144,9 +163,12 @@ npm start
 
 ```
 Asset ManagerTools/
-├── start.bat / start.ps1    # 一键启动
+├── start.bat / start.ps1    # 一键启动（自动生成 AssetManager.lnk 带图标快捷方式）
+├── create-launcher.bat      # 手动创建带图标的启动快捷方式
+├── assets/                  # 应用图标 (app-icon.ico / .png)
 ├── server/                  # Express API (tsx / dist)
 ├── client/                  # React + Vite + Three.js 前端
+│   └── public/              # favicon、manifest
 ├── data/                    # 运行时 JSON 配置
 ├── Asset_Pipeline_Standard.md
 └── README.md
@@ -156,5 +178,5 @@ Asset ManagerTools/
 
 ## 技术栈
 
-- **后端**：Node.js、Express、sharp（图片分割）、multer（文件导入）
+- **后端**：Node.js、Express、sharp（图片分割 / 缩放 / 镜像）、multer（文件导入）
 - **前端**：React 18、Vite、@react-three/fiber、@react-three/drei

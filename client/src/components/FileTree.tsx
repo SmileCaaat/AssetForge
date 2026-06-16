@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { ConceptAssetRole, FileNode } from "../types";
-import { CONCEPT_ROLE_LABELS, conceptRoleTagClass } from "../types";
+import type { ConceptAssetRole, FileNode, TextureMapType } from "../types";
+import {
+  CONCEPT_ROLE_LABELS,
+  TEXTURE_TYPE_LABELS,
+  conceptRoleTagClass,
+  textureTypeTagClass,
+} from "../types";
 import { isImageFile, isModelFile } from "../api";
 
 interface FileTreeProps {
@@ -10,6 +15,7 @@ interface FileTreeProps {
   renamingPath?: string | null;
   cutPath?: string | null;
   conceptTags?: Record<string, ConceptAssetRole>;
+  textureTags?: Record<string, TextureMapType>;
   onSelect: (node: FileNode) => void;
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
   onRenameCommit: (node: FileNode, newName: string) => void;
@@ -51,8 +57,10 @@ function RenameInput({
   );
 }
 
-function tagClass(role?: ConceptAssetRole): string {
-  return conceptRoleTagClass(role);
+function tagClass(conceptRole?: ConceptAssetRole, textureType?: TextureMapType): string {
+  if (conceptRole) return conceptRoleTagClass(conceptRole);
+  if (textureType) return textureTypeTagClass();
+  return "";
 }
 
 function TreeNode({
@@ -62,6 +70,7 @@ function TreeNode({
   renamingPath,
   cutPath,
   conceptTags,
+  textureTags,
   onSelect,
   onContextMenu,
   onRenameCommit,
@@ -74,6 +83,7 @@ function TreeNode({
   renamingPath?: string | null;
   cutPath?: string | null;
   conceptTags?: Record<string, ConceptAssetRole>;
+  textureTags?: Record<string, TextureMapType>;
   onSelect: (node: FileNode) => void;
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
   onRenameCommit: (node: FileNode, newName: string) => void;
@@ -86,11 +96,17 @@ function TreeNode({
   const isRenaming = node.path === renamingPath;
   const isRoot = projectRoot === node.path;
   const conceptRole = conceptTags?.[node.path];
+  const textureType = textureTags?.[node.path];
+  const tagLabel = conceptRole
+    ? CONCEPT_ROLE_LABELS[conceptRole]
+    : textureType
+      ? TEXTURE_TYPE_LABELS[textureType]
+      : null;
 
   if (!node.isDirectory) {
     return (
       <button
-        className={`tree-file ${isSelected ? "selected" : ""} ${isCut ? "cut" : ""} ${tagClass(conceptRole)}`}
+        className={`tree-file ${isSelected ? "selected" : ""} ${isCut ? "cut" : ""} ${tagClass(conceptRole, textureType)}`}
         style={{ paddingLeft: `${depth * 14 + 8}px` }}
         onClick={() => onSelect(node)}
         onContextMenu={(e) => {
@@ -110,9 +126,7 @@ function TreeNode({
               {isImageFile(node) ? "🖼" : isModelFile(node) ? "📦" : "📄"}
             </span>
             {node.name}
-            {conceptRole && (
-              <span className="tag-badge">{CONCEPT_ROLE_LABELS[conceptRole]}</span>
-            )}
+            {tagLabel && <span className="tag-badge">{tagLabel}</span>}
           </>
         )}
       </button>
@@ -169,6 +183,7 @@ function TreeNode({
             renamingPath={renamingPath}
             cutPath={cutPath}
             conceptTags={conceptTags}
+            textureTags={textureTags}
             onSelect={onSelect}
             onContextMenu={onContextMenu}
             onRenameCommit={onRenameCommit}
@@ -187,6 +202,7 @@ export function FileTree({
   renamingPath,
   cutPath,
   conceptTags,
+  textureTags,
   onSelect,
   onContextMenu,
   onRenameCommit,
@@ -213,6 +229,7 @@ export function FileTree({
         renamingPath={renamingPath}
         cutPath={cutPath}
         conceptTags={conceptTags}
+        textureTags={textureTags}
         onSelect={onSelect}
         onContextMenu={onContextMenu}
         onRenameCommit={onRenameCommit}

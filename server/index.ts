@@ -35,6 +35,7 @@ import { isPathInsideRoot } from "./pathSecurity.js";
 import type { OpenFolderTarget, ProjectLink, ProjectSide } from "./types.js";
 import { createMasterWorkspace } from "./workspaceCreator.js";
 import { isDuplicateWorkspace, openMasterWorkspace } from "./workspaceLinker.js";
+import { repairProjectLinks, resolveProjectPathAccessible } from "./projectPaths.js";
 import {
   loadConceptTags,
   markConceptAsset,
@@ -43,10 +44,21 @@ import {
 } from "./conceptTags.js";
 import type { ConceptAssetRole } from "./conceptTags.js";
 import {
+  loadTextureTags,
+  markTextureMap,
+  resolveTextureTagsByPath,
+  syncTextureTagsFromFiles,
+  TEXTURE_MAP_TYPES,
+} from "./blenderTextureTags.js";
+import type { TextureMapType } from "./blenderTextureTags.js";
+import { resizeTextureImage, TEXTURE_RESIZE_PRESETS } from "./imageResize.js";
+import { mirrorImage } from "./imageMirror.js";
+import {
   getActiveWorkspace,
   getAllowedRoots,
   getBlenderRoot,
   getConceptRoot,
+  getAllAllowedRoots,
   resolveOpenFolderPath,
 } from "./workspacePaths.js";
 import { splitImageGrid } from "./imageSplit.js";
@@ -121,6 +133,7 @@ app.get("/api/workspace", async (_req, res) => {
   let state = await loadConfig();
   const { state: syncedState, autoLinked } = await syncActiveWorkspaceProjects(state);
   state = syncedState;
+  ({ state } = await repairActiveWorkspace(state));
   res.json(await buildWorkspaceResponse(state, autoLinked));
 });
 
@@ -220,7 +233,9 @@ app.put("/api/workspaces/active", async (req, res) => {
     state.activeWorkspaceId = workspaceId;
     await saveConfig(state);
     const { state: syncedState, autoLinked } = await syncActiveWorkspaceProjects(state);
-    res.json(await buildWorkspaceResponse(syncedState, autoLinked));
+    ({ state } = await repairActiveWorkspace(syncedState));
+
+    res.json(await buildWorkspaceResponse(state, autoLinked));
   } catch (error) {
     res.status(400).json({ error: String(error) });
   }
@@ -367,17 +382,30 @@ app.delete("/api/projects/:id", async (req, res) => {
   }
 });
 
+async function repairActiveWorkspace(state: Awaited<ReturnType<typeof loadConfig>>): Promise<{
+  state: Awaited<ReturnType<typeof loadConfig>>;
+  repaired: ProjectLink[];
+}> {
+  const active = getActiveWorkspace(state);
+  const { workspace, repaired } = await repairProjectLinks(active);
+  if (repaired.length === 0) {
+    return { state, repaired: [] };
+  }
+
+  const nextState = updateActiveWorkspace(state, () => workspace);
+  await saveConfig(nextState);
+  return { state: nextState, repaired };
+}
+
 app.get("/api/projects/:id/tree", async (req, res) => {
   try {
     const side = (req.query.side as ProjectSide) || "concept";
-    const state = await loadConfig();
+    let state = await loadConfig();
+    ({ state } = await repairActiveWorkspace(state));
     const active = getActiveWorkspace(state);
     const project = findProject(state, req.params.id);
-    const root = resolveProjectPath(active, project, side);
-    const tree = await buildFileTree(
-      root,
-      project[side === "concept" ? "conceptPath" : "blenderPath"],
-    );
+    const root = await resolveProjectPathAccessible(active, project, side);
+    const tree = await buildFileTree(root, path.basename(root));
     res.json({ root, tree });
   } catch (error) {
     res.status(404).json({ error: String(error) });
@@ -387,10 +415,11 @@ app.get("/api/projects/:id/tree", async (req, res) => {
 app.get("/api/projects/:id/assets", async (req, res) => {
   try {
     const side = (req.query.side as ProjectSide) || "concept";
-    const state = await loadConfig();
+    let state = await loadConfig();
+    ({ state } = await repairActiveWorkspace(state));
     const active = getActiveWorkspace(state);
     const project = findProject(state, req.params.id);
-    const root = resolveProjectPath(active, project, side);
+    const root = await resolveProjectPathAccessible(active, project, side);
     const assets = await collectPreviewableFiles(root);
     res.json({ root, assets });
   } catch (error) {
@@ -400,10 +429,11 @@ app.get("/api/projects/:id/assets", async (req, res) => {
 
 app.get("/api/projects/:id/concept-tags", async (req, res) => {
   try {
-    const state = await loadConfig();
+    let state = await loadConfig();
+    ({ state } = await repairActiveWorkspace(state));
     const active = getActiveWorkspace(state);
     const project = findProject(state, req.params.id);
-    const projectRoot = resolveProjectPath(active, project, "concept");
+    const projectRoot = await resolveProjectPathAccessible(active, project, "concept");
     let tagsFile = await loadConceptTags(projectRoot);
     tagsFile = await syncConceptTagsFromFiles(projectRoot, project.displayName, tagsFile);
     const tags = resolveConceptTagsByPath(projectRoot, tagsFile);
@@ -428,12 +458,105 @@ app.post("/api/projects/:id/mark-concept", async (req, res) => {
     const state = await loadConfig();
     const active = getActiveWorkspace(state);
     const project = findProject(state, req.params.id);
-    const projectRoot = resolveProjectPath(active, project, "concept");
+    const projectRoot = await resolveProjectPathAccessible(active, project, "concept");
     const result = await markConceptAsset({
       projectRoot,
       displayName: project.displayName,
       filePath,
       role,
+      allowedRoots: getAllowedRoots(state),
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: String(error) });
+  }
+});
+
+app.get("/api/projects/:id/texture-tags", async (req, res) => {
+  try {
+    const state = await loadConfig();
+    const active = getActiveWorkspace(state);
+    const project = findProject(state, req.params.id);
+    const projectRoot = await resolveProjectPathAccessible(active, project, "blender");
+    let tagsFile = await loadTextureTags(projectRoot);
+    tagsFile = await syncTextureTagsFromFiles(projectRoot, project.displayName, tagsFile);
+    const tags = resolveTextureTagsByPath(projectRoot, tagsFile);
+    res.json({ tags, entries: tagsFile.tags });
+  } catch (error) {
+    res.status(404).json({ error: String(error) });
+  }
+});
+
+app.post("/api/projects/:id/mark-texture", async (req, res) => {
+  try {
+    const { filePath, type } = req.body as { filePath: string; type: TextureMapType };
+    if (!filePath || !type) {
+      res.status(400).json({ error: "filePath and type are required" });
+      return;
+    }
+    if (!TEXTURE_MAP_TYPES.includes(type)) {
+      res.status(400).json({ error: "Invalid texture type" });
+      return;
+    }
+
+    const state = await loadConfig();
+    const active = getActiveWorkspace(state);
+    const project = findProject(state, req.params.id);
+    const projectRoot = await resolveProjectPathAccessible(active, project, "blender");
+    const result = await markTextureMap({
+      projectRoot,
+      displayName: project.displayName,
+      filePath,
+      type,
+      allowedRoots: getAllowedRoots(state),
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: String(error) });
+  }
+});
+
+app.post("/api/images/resize", async (req, res) => {
+  try {
+    const { path: imagePath, size } = req.body as { path: string; size: number };
+    if (!imagePath || !size) {
+      res.status(400).json({ error: "path and size are required" });
+      return;
+    }
+    if (!TEXTURE_RESIZE_PRESETS.includes(size as typeof TEXTURE_RESIZE_PRESETS[number])) {
+      res.status(400).json({ error: "Invalid texture size preset" });
+      return;
+    }
+
+    const state = await loadConfig();
+    const result = await resizeTextureImage({
+      imagePath,
+      size: size as typeof TEXTURE_RESIZE_PRESETS[number],
+      allowedRoots: getAllowedRoots(state),
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: String(error) });
+  }
+});
+
+app.post("/api/images/mirror", async (req, res) => {
+  try {
+    const { path: imagePath, horizontal, vertical } = req.body as {
+      path: string;
+      horizontal?: boolean;
+      vertical?: boolean;
+    };
+    if (!imagePath) {
+      res.status(400).json({ error: "path is required" });
+      return;
+    }
+
+    const state = await loadConfig();
+    const result = await mirrorImage({
+      imagePath,
+      horizontal: Boolean(horizontal),
+      vertical: Boolean(vertical),
       allowedRoots: getAllowedRoots(state),
     });
     res.json(result);
@@ -615,14 +738,17 @@ app.get("/api/files", async (req, res) => {
     }
 
     const state = await loadConfig();
-    const allowedRoots = getAllowedRoots(state);
+    const allowedRoots = getAllAllowedRoots(state);
     const resolved = path.resolve(filePath);
 
-    const allowed = allowedRoots.some(
-      (root) => isPathInsideRoot(resolved, root) && fs.existsSync(resolved),
-    );
-    if (!allowed) {
+    const insideAllowed = allowedRoots.some((root) => isPathInsideRoot(resolved, root));
+    if (!insideAllowed) {
       res.status(403).json({ error: "Access denied" });
+      return;
+    }
+
+    if (!fs.existsSync(resolved)) {
+      res.status(404).json({ error: "File not found" });
       return;
     }
 

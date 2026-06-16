@@ -24,6 +24,96 @@ export function conceptRoleTagClass(role?: ConceptAssetRole): string {
   return "";
 }
 
+export type TextureMapType =
+  | "BaseColor"
+  | "Roughness"
+  | "Metallic"
+  | "Normal"
+  | "AO"
+  | "Height"
+  | "Edge"
+  | "Detection"
+  | "Alpha"
+  | "Bump"
+  | "Curvature"
+  | "Emission";
+
+export const TEXTURE_MAP_TYPES: TextureMapType[] = [
+  "BaseColor",
+  "Roughness",
+  "Metallic",
+  "Normal",
+  "AO",
+  "Height",
+  "Edge",
+  "Detection",
+  "Alpha",
+  "Bump",
+  "Curvature",
+  "Emission",
+];
+
+export const TEXTURE_TYPE_LABELS: Record<TextureMapType, string> = {
+  BaseColor: "BaseColor",
+  Roughness: "Roughness",
+  Metallic: "Metallic",
+  Normal: "Normal",
+  AO: "AO",
+  Height: "Height",
+  Edge: "Edge",
+  Detection: "Detection",
+  Alpha: "Alpha",
+  Bump: "Bump",
+  Curvature: "Curvature",
+  Emission: "Emission",
+};
+
+export const TEXTURE_TYPE_HINTS: Record<TextureMapType, string> = {
+  BaseColor: "基础色",
+  Roughness: "粗糙度",
+  Metallic: "金属度",
+  Normal: "法线",
+  AO: "环境光遮蔽",
+  Height: "高度",
+  Edge: "边缘",
+  Detection: "检测",
+  Alpha: "透明",
+  Bump: "凹凸",
+  Curvature: "曲率",
+  Emission: "自发光",
+};
+
+export interface TextureTagEntry {
+  type: TextureMapType;
+  relativePath: string;
+  taggedAt: string;
+}
+
+export interface TextureTagsResponse {
+  tags: Record<string, TextureMapType>;
+  entries: Record<string, TextureTagEntry>;
+}
+
+export type TextureResizePreset = 256 | 512 | 1024 | 2048 | 4096;
+
+export interface TextureSizePreset {
+  size: TextureResizePreset;
+  label: string;
+  title: string;
+}
+
+export const TEXTURE_SIZE_PRESETS: TextureSizePreset[] = [
+  { size: 256, label: "256", title: "Small" },
+  { size: 512, label: "512", title: "Medium" },
+  { size: 1024, label: "1024", title: "Standard" },
+  { size: 2048, label: "2048", title: "High" },
+  { size: 4096, label: "4096", title: "Ultra" },
+];
+
+export function textureTypeTagClass(): string {
+  return "tag-texture-map";
+}
+
 export interface ConceptTagEntry {
   role: ConceptAssetRole;
   relativePath: string;

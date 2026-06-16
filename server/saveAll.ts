@@ -2,6 +2,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { loadConfig, saveConfig } from "./config.js";
 import { flushConceptTags } from "./conceptTags.js";
+import { flushTextureTags } from "./blenderTextureTags.js";
 import { resolveProjectPath } from "./scanner.js";
 import { loadShortcuts, saveShortcuts } from "./shortcuts.js";
 
@@ -27,11 +28,18 @@ export async function saveAllJsonData(): Promise<SaveAllResult> {
   for (const workspace of state.workspaces) {
     for (const project of workspace.projects) {
       try {
-        const projectRoot = resolveProjectPath(workspace, project, "concept");
-        const tagPath = await flushConceptTags(projectRoot, project.displayName);
-        if (tagPath) files.push(tagPath);
+        const conceptRoot = resolveProjectPath(workspace, project, "concept");
+        const conceptTagPath = await flushConceptTags(conceptRoot, project.displayName);
+        if (conceptTagPath) files.push(conceptTagPath);
       } catch {
         // Skip projects whose concept folder is missing or inaccessible.
+      }
+      try {
+        const blenderRoot = resolveProjectPath(workspace, project, "blender");
+        const textureTagPath = await flushTextureTags(blenderRoot, project.displayName);
+        if (textureTagPath) files.push(textureTagPath);
+      } catch {
+        // Skip projects whose blender folder is missing or inaccessible.
       }
     }
   }

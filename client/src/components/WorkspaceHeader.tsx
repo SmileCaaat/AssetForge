@@ -9,6 +9,8 @@ interface WorkspaceHeaderProps {
   onOpenWorkspace: () => void;
   onSwitchWorkspace: (workspaceId: string) => void;
   onSaveAll: () => void;
+  onRefreshProject?: () => void;
+  canRefreshProject?: boolean;
   saving?: boolean;
   lastSavedAt?: Date | null;
 }
@@ -19,6 +21,8 @@ export function WorkspaceHeader({
   onOpenWorkspace,
   onSwitchWorkspace,
   onSaveAll,
+  onRefreshProject,
+  canRefreshProject = false,
   saving = false,
   lastSavedAt = null,
 }: WorkspaceHeaderProps) {
@@ -94,6 +98,17 @@ export function WorkspaceHeader({
           >
             {saving ? "保存中…" : "保存"}
           </button>
+          {onRefreshProject && (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={onRefreshProject}
+              disabled={!canRefreshProject}
+              title="重新扫描当前项目文件与可预览资产"
+            >
+              刷新
+            </button>
+          )}
         </div>
 
         <div className="top-bar-spacer" />

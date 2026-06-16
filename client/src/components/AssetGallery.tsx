@@ -1,5 +1,10 @@
-import type { ConceptAssetRole, FileNode } from "../types";
-import { CONCEPT_ROLE_LABELS, conceptRoleTagClass } from "../types";
+import type { ConceptAssetRole, FileNode, TextureMapType } from "../types";
+import {
+  CONCEPT_ROLE_LABELS,
+  TEXTURE_TYPE_LABELS,
+  conceptRoleTagClass,
+  textureTypeTagClass,
+} from "../types";
 import { fileUrl, formatSize, isImageFile, isModelFile } from "../api";
 
 interface AssetGalleryProps {
@@ -7,13 +12,19 @@ interface AssetGalleryProps {
   selectedPath?: string;
   cutPath?: string | null;
   conceptTags?: Record<string, ConceptAssetRole>;
+  textureTags?: Record<string, TextureMapType>;
   onSelect: (node: FileNode) => void;
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
   onBackgroundContextMenu?: (e: React.MouseEvent) => void;
 }
 
-function tagClass(role?: ConceptAssetRole): string {
-  return conceptRoleTagClass(role);
+function tagClass(
+  conceptRole?: ConceptAssetRole,
+  textureType?: TextureMapType,
+): string {
+  if (conceptRole) return conceptRoleTagClass(conceptRole);
+  if (textureType) return textureTypeTagClass();
+  return "";
 }
 
 export function AssetGallery({
@@ -21,6 +32,7 @@ export function AssetGallery({
   selectedPath,
   cutPath,
   conceptTags,
+  textureTags,
   onSelect,
   onContextMenu,
   onBackgroundContextMenu,
@@ -52,11 +64,18 @@ export function AssetGallery({
       }}
     >
       {assets.map((asset) => {
-        const role = conceptTags?.[asset.path];
+        const conceptRole = conceptTags?.[asset.path];
+        const textureType = textureTags?.[asset.path];
+        const badgeLabel = conceptRole
+          ? CONCEPT_ROLE_LABELS[conceptRole]
+          : textureType
+            ? TEXTURE_TYPE_LABELS[textureType]
+            : null;
+
         return (
           <button
             key={asset.path}
-            className={`asset-card ${asset.path === selectedPath ? "selected" : ""} ${asset.path === cutPath ? "cut" : ""} ${tagClass(role)}`}
+            className={`asset-card ${asset.path === selectedPath ? "selected" : ""} ${asset.path === cutPath ? "cut" : ""} ${tagClass(conceptRole, textureType)}`}
             onClick={() => onSelect(asset)}
             onContextMenu={(e) => {
               e.stopPropagation();
@@ -71,9 +90,7 @@ export function AssetGallery({
               ) : (
                 <div className="model-placeholder">BLEND</div>
               )}
-              {role && (
-                <span className="asset-tag-badge">{CONCEPT_ROLE_LABELS[role]}</span>
-              )}
+              {badgeLabel && <span className="asset-tag-badge">{badgeLabel}</span>}
             </div>
             <div className="asset-meta">
               <span className="asset-name" title={asset.relativePath}>
