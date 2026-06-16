@@ -1,5 +1,6 @@
 import type { MaterialLabParams, MaterialLabState } from "./materialLabTypes";
 import { TEXTURE_SLOT_LABELS } from "./materialLabTypes";
+import { findMatchingPreset, MATERIAL_LAB_PRESETS } from "./materialLabPresets";
 
 interface TextureSlotPanelProps {
   textures: MaterialLabState["textures"];
@@ -127,9 +128,26 @@ function SliderRow({
 
 export function MaterialParamPanel({ params, onChange }: MaterialParamPanelProps) {
   const patch = (partial: Partial<MaterialLabParams>) => onChange({ ...params, ...partial });
+  const activePreset = findMatchingPreset(params);
 
   return (
     <div className="material-lab-panel material-param-panel">
+      <h4>参数预设</h4>
+      <div className="material-preset-list">
+        {MATERIAL_LAB_PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className={`material-preset-btn${activePreset?.id === preset.id ? " active" : ""}`}
+            title={preset.description}
+            onClick={() => onChange(preset.params)}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+      {activePreset && <p className="material-preset-desc muted">{activePreset.description}</p>}
+
       <h4>Toon 参数</h4>
       <ColorRow label="Base Tint" value={params.baseColorTint} onChange={(v) => patch({ baseColorTint: v })} />
       <SliderRow label="Saturation" value={params.baseSaturation} min={0} max={3} step={0.05} onChange={(v) => patch({ baseSaturation: v })} />
@@ -149,7 +167,7 @@ export function MaterialParamPanel({ params, onChange }: MaterialParamPanelProps
           onChange={(e) => patch({ outlineEnabled: e.target.checked })}
         />
       </label>
-      <SliderRow label="Outline Width" value={params.outlineWidth} min={0} max={0.08} step={0.001} onChange={(v) => patch({ outlineWidth: v })} />
+      <SliderRow label="Outline Width" value={params.outlineWidth} min={0} max={0.03} step={0.001} onChange={(v) => patch({ outlineWidth: v })} />
       <ColorRow label="Outline Color" value={params.outlineColor} onChange={(v) => patch({ outlineColor: v })} />
     </div>
   );

@@ -88,6 +88,8 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const [projectPathWarning, setProjectPathWarning] = useState<string | null>(null);
   const projectLoadGeneration = useRef(0);
   const notifyRef = useRef<(text: string, type?: "info" | "error") => void>(() => {});
+  const showMaterialLabRef = useRef(showMaterialLab);
+  showMaterialLabRef.current = showMaterialLab;
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
 
@@ -206,13 +208,15 @@ export default function App({ workspace, onRefresh }: AppProps) {
       try {
         const result = await saveAllData();
         setLastSavedAt(new Date(result.savedAt));
-        if (side === "concept" && selectedProjectId) {
-          const tagRes = await fetchConceptTags(selectedProjectId);
-          setConceptTags(tagRes.tags);
-        }
-        if (side === "blender" && selectedProjectId) {
-          const tagRes = await fetchTextureTags(selectedProjectId);
-          setTextureTags(tagRes.tags);
+        if (!showMaterialLabRef.current) {
+          if (side === "concept" && selectedProjectId) {
+            const tagRes = await fetchConceptTags(selectedProjectId);
+            setConceptTags(tagRes.tags);
+          }
+          if (side === "blender" && selectedProjectId) {
+            const tagRes = await fetchTextureTags(selectedProjectId);
+            setTextureTags(tagRes.tags);
+          }
         }
         if (!silent) {
           fileManager.notify(`已保存 ${result.files.length} 个 JSON 配置文件`);
@@ -230,7 +234,13 @@ export default function App({ workspace, onRefresh }: AppProps) {
     [savingAll, side, selectedProjectId, fileManager],
   );
 
-  useAutoSave(handleSaveAll);
+  useAutoSave(handleSaveAll, {
+    shouldSkip: () => showMaterialLabRef.current,
+  });
+
+  const handleMaterialLabNotify = useCallback((message: string, type?: "info" | "error") => {
+    notifyRef.current(message, type ?? "info");
+  }, []);
 
   const handleMarkAsset = async (node: FileNode, role: ConceptAssetRole) => {
     if (!selectedProjectId) return;
@@ -693,7 +703,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
           project={selectedProject}
           projectRoot={projectRoot}
           onClose={() => setShowMaterialLab(false)}
-          onNotify={(message, type) => fileManager.notify(message, type ?? "info")}
+          onNotify={handleMaterialLabNotify}
           onRefreshProject={() => void reloadProjectFiles()}
         />
       )}

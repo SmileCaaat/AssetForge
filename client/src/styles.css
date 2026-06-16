@@ -2225,6 +2225,55 @@ code {
   grid-template-columns: 1fr auto;
 }
 
+.material-preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.material-preset-btn {
+  padding: 4px 9px;
+  font-size: 0.72rem;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.material-preset-btn:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.material-preset-btn.active {
+  color: var(--text);
+  border-color: var(--accent, #6ea8fe);
+  background: rgba(110, 168, 254, 0.12);
+}
+
+.material-preset-desc {
+  font-size: 0.72rem;
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
+.export-panel-hint {
+  font-size: 0.72rem;
+  margin: 0 0 8px;
+  line-height: 1.45;
+}
+
+.export-panel-hint code {
+  font-size: 0.68rem;
+}
+
+.material-param-panel h4 + h4 {
+  margin-top: 4px;
+}
+
 .material-lab-preview {
   flex: 1;
   min-height: 420px;

@@ -2,6 +2,12 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import type { MaterialLabState } from "../materialLabTypes.js";
+import {
+  UNITY_ASSETS_ROOT,
+  bundleHlslRelative,
+  projectBundleRel,
+  sharedImporterRel,
+} from "./unityExportPaths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_ROOT = path.join(__dirname, "..", "templates");
@@ -62,94 +68,267 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
   return result;
 }
 
-export async function exportUnityMaterialPackage(
+function rel(...parts: string[]): string {
+  return parts.join("/");
+}
+
+async function copyProjectFile(
   projectRoot: string,
-  state: MaterialLabState,
-): Promise<{ exportRoot: string; files: string[] }> {
-  const unityRoot = path.join(projectRoot, "unity");
-  const shadersDir = path.join(unityRoot, "shaders");
-  const generatedDir = path.join(shadersDir, "Generated");
-  const materialsDir = path.join(unityRoot, "materials");
-  const importerDir = path.join(unityRoot, "importer");
-
-  await fs.mkdir(generatedDir, { recursive: true });
-  await fs.mkdir(materialsDir, { recursive: true });
-  await fs.mkdir(importerDir, { recursive: true });
-
-  const hlslRel = "unity/shaders/Generated/ToonCore.generated.hlsl";
-  const hlslAbs = path.join(projectRoot, hlslRel.split("/").join(path.sep));
+  relativePath: string,
+  destAbs: string,
+): Promise<boolean> {
+  if (!relativePath.trim()) return false;
+  const srcAbs = path.resolve(projectRoot, relativePath.split("/").join(path.sep));
+  if (!srcAbs.startsWith(path.resolve(projectRoot))) return false;
   try {
-    await fs.access(hlslAbs);
+    await fs.access(srcAbs);
+    await fs.mkdir(path.dirname(destAbs), { recursive: true });
+    await fs.copyFile(srcAbs, destAbs);
+    return true;
   } catch {
-    await fs.writeFile(hlslAbs, FALLBACK_HLSL, "utf-8");
+    return false;
+  }
+}
+
+interface MaterialJsonV2 {
+  version: 2;
+  name: string;
+  shader: string;
+  bundleName: string;
+  displayName: string;
+  model: string;
+  textures: { key: string; path: string }[];
+  colors: { key: string; value: number[] }[];
+  floats: { key: string; value: number }[];
+}
+
+function buildMaterialJson(state: MaterialLabState, bundleName: string, copied: CopiedAssets): MaterialJsonV2 {
+  const materialName = `M_${state.projectName}`;
+  const textureEntries: { key: string; path: string }[] = [];
+
+  const slots: [string, string | undefined][] = [
+    ["_BaseMap", copied.baseColor],
+    ["_BumpMap", copied.normal],
+    ["_MetallicGlossMap", copied.metallicSmoothness],
+    ["_OcclusionMap", copied.ao],
+    ["_EmissionMap", copied.emission],
+  ];
+
+  for (const [key, relPath] of slots) {
+    if (relPath) textureEntries.push({ key, path: relPath });
   }
 
-  const shaderTemplate = await readTemplate("unity/ToonURP.template.shader");
-  const shaderContent = renderTemplate(shaderTemplate, {
-    SHADER_NAME: state.unity.shaderName,
-  });
-  const shaderRel = "unity/shaders/ToonURP.shader";
-  await fs.writeFile(path.join(projectRoot, shaderRel.split("/").join(path.sep)), shaderContent, "utf-8");
-
-  const materialName = `M_${state.projectName}`;
-  const materialJson = {
-    version: 1,
+  return {
+    version: 2,
     name: materialName,
     shader: state.unity.shaderName,
-    textures: {
-      _BaseMap: state.textures.baseColor.path,
-      _BumpMap: state.textures.normal.path,
-      _MetallicGlossMap: state.textures.metallicSmoothness.path,
-      _OcclusionMap: state.textures.ao.path,
-      _EmissionMap: state.textures.emission.path,
-    },
-    colors: {
-      _BaseColorTint: state.params.baseColorTint,
-      _RimColor: state.params.rimColor,
-      _OutlineColor: state.params.outlineColor,
-    },
-    floats: {
-      _RampSteps: state.params.rampSteps,
-      _ShadowStrength: state.params.shadowStrength,
-      _RimPower: state.params.rimPower,
-      _RimIntensity: state.params.rimIntensity,
-      _OutlineWidth: state.params.outlineWidth,
-    },
+    bundleName,
+    displayName: state.displayName,
+    model: copied.model ?? "",
+    textures: textureEntries,
+    colors: [
+      { key: "_BaseColorTint", value: [...state.params.baseColorTint] },
+      { key: "_RimColor", value: [...state.params.rimColor] },
+      { key: "_OutlineColor", value: [...state.params.outlineColor] },
+    ],
+    floats: [
+      { key: "_RampSteps", value: state.params.rampSteps },
+      { key: "_ShadowStrength", value: state.params.shadowStrength },
+      { key: "_RimPower", value: state.params.rimPower },
+      { key: "_RimIntensity", value: state.params.rimIntensity },
+      {
+        key: "_OutlineWidth",
+        value: state.params.outlineEnabled ? state.params.outlineWidth : 0,
+      },
+      { key: "_BumpScale", value: 1 },
+    ],
   };
-  const materialRel = `unity/materials/${materialName}.material.json`;
+}
+
+interface CopiedAssets {
+  model?: string;
+  baseColor?: string;
+  normal?: string;
+  metallicSmoothness?: string;
+  ao?: string;
+  emission?: string;
+}
+
+async function writeSharedImporter(blenderRoot: string, state: MaterialLabState): Promise<string> {
+  const importerAbs = path.join(blenderRoot, sharedImporterRel().split("/").join(path.sep));
+  await fs.mkdir(path.dirname(importerAbs), { recursive: true });
+  const importerTemplate = await readTemplate("unity/AssetManagerMaterialImporter.template.cs");
+  const importerContent = renderTemplate(importerTemplate, {
+    MATERIAL_NAME: `M_${state.projectName}`,
+    SHADER_NAME: state.unity.shaderName,
+  });
+  await fs.writeFile(importerAbs, importerContent, "utf-8");
+  return sharedImporterRel();
+}
+
+async function exportProjectUnityBundle(
+  projectRoot: string,
+  blenderRoot: string,
+  state: MaterialLabState,
+): Promise<{ bundleRel: string; files: string[] }> {
+  const bundleName = state.projectName;
+  const bundleRel = projectBundleRel(bundleName);
+  const bundleAbs = path.join(blenderRoot, bundleRel.split("/").join(path.sep));
+
+  const modelsDir = path.join(bundleAbs, "Models");
+  const texturesDir = path.join(bundleAbs, "Textures");
+  const shadersDir = path.join(bundleAbs, "Shaders");
+  const generatedDir = path.join(shadersDir, "Generated");
+  const materialsDir = path.join(bundleAbs, "Materials");
+
+  await fs.mkdir(modelsDir, { recursive: true });
+  await fs.mkdir(texturesDir, { recursive: true });
+  await fs.mkdir(generatedDir, { recursive: true });
+  await fs.mkdir(materialsDir, { recursive: true });
+
+  const files: string[] = [];
+  const copied: CopiedAssets = {};
+
+  if (state.preview.modelPath) {
+    const fileName = path.basename(state.preview.modelPath);
+    const destAbs = path.join(modelsDir, fileName);
+    if (await copyProjectFile(projectRoot, state.preview.modelPath, destAbs)) {
+      copied.model = rel("Models", fileName);
+      files.push(rel(bundleRel, copied.model));
+    }
+  }
+
+  const textureSlots: [keyof CopiedAssets, string][] = [
+    ["baseColor", state.textures.baseColor.path],
+    ["normal", state.textures.normal.path],
+    ["metallicSmoothness", state.textures.metallicSmoothness.path],
+    ["ao", state.textures.ao.path],
+    ["emission", state.textures.emission.path],
+  ];
+
+  for (const [key, srcRel] of textureSlots) {
+    if (!srcRel) continue;
+    const fileName = path.basename(srcRel);
+    const destAbs = path.join(texturesDir, fileName);
+    if (await copyProjectFile(projectRoot, srcRel, destAbs)) {
+      copied[key] = rel("Textures", fileName);
+      files.push(rel(bundleRel, copied[key]!));
+    }
+  }
+
+  const hlslRel = rel(bundleRel, "Shaders/Generated/ToonCore.generated.hlsl");
+  await fs.writeFile(path.join(blenderRoot, hlslRel.split("/").join(path.sep)), FALLBACK_HLSL, "utf-8");
+  files.push(hlslRel);
+
+  const shaderTemplate = await readTemplate("unity/ToonURP.template.shader");
+  const shaderRel = rel(bundleRel, "Shaders/ToonURP.shader");
   await fs.writeFile(
-    path.join(projectRoot, materialRel.split("/").join(path.sep)),
+    path.join(blenderRoot, shaderRel.split("/").join(path.sep)),
+    renderTemplate(shaderTemplate, { SHADER_NAME: state.unity.shaderName }),
+    "utf-8",
+  );
+  files.push(shaderRel);
+
+  const materialName = `M_${bundleName}`;
+  const materialJson = buildMaterialJson(state, bundleName, copied);
+  const materialRel = rel(bundleRel, "Materials", `${materialName}.material.json`);
+  await fs.writeFile(
+    path.join(blenderRoot, materialRel.split("/").join(path.sep)),
     JSON.stringify(materialJson, null, 2),
     "utf-8",
   );
+  files.push(materialRel);
 
-  const importerTemplate = await readTemplate("unity/AssetManagerMaterialImporter.template.cs");
-  const importerContent = renderTemplate(importerTemplate, {
-    MATERIAL_NAME: materialName,
-    SHADER_NAME: state.unity.shaderName,
-  });
-  const importerRel = "unity/importer/AssetManagerMaterialImporter.cs";
+  const manifestRel = rel(bundleRel, "bundle.manifest.json");
   await fs.writeFile(
-    path.join(projectRoot, importerRel.split("/").join(path.sep)),
-    importerContent,
+    path.join(blenderRoot, manifestRel.split("/").join(path.sep)),
+    JSON.stringify(
+      {
+        version: 1,
+        bundleName,
+        displayName: state.displayName,
+        shader: state.unity.shaderName,
+        material: rel("Materials", `${materialName}.material.json`),
+        model: copied.model ?? "",
+        exportedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
     "utf-8",
   );
+  files.push(manifestRel);
 
-  const readmeTemplate = await readTemplate("unity/README_UnityImport.template.md");
-  const readmeContent = renderTemplate(readmeTemplate, {
-    PROJECT_NAME: state.projectName,
-    DISPLAY_NAME: state.displayName,
-    MATERIAL_NAME: materialName,
-    SHADER_NAME: state.unity.shaderName,
-  });
-  const readmeRel = "unity/README_UnityImport.md";
-  await fs.writeFile(path.join(projectRoot, readmeRel.split("/").join(path.sep)), readmeContent, "utf-8");
+  const readmeRel = rel(bundleRel, "README.md");
+  const readme = `# ${state.displayName} (${bundleName})
 
+Unity 就绪资产包 — 由 AssetManagerTools Material Lab 导出。
+
+## 目录结构
+
+\`\`\`
+${bundleName}/
+├── Models/          FBX 模型
+├── Textures/        贴图
+├── Shaders/         ToonURP Shader + HLSL
+├── Materials/       材质 JSON（供 Asset Manager 菜单导入）
+├── bundle.manifest.json
+└── README.md
+\`\`\`
+
+## 导入 Unity
+
+1. 将整个 \`${bundleName}/\` 文件夹复制到 Unity 项目的 \`Assets/\` 下（例如 \`Assets/Characters/${bundleName}/\`）。
+2. **首次**使用时，还需复制工作区 \`${UNITY_ASSETS_ROOT}/Editor/\` 到 \`Assets/\`（只需一次，含 Asset Manager 菜单脚本）。
+3. 在 Unity 菜单：
+   - **Asset Manager → Import Material From JSON** — 导入单个 \`${materialName}.material.json\`
+   - **Asset Manager → Import All Materials In Folder…** — 选择 \`${bundleName}\` 文件夹，批量生成 .mat
+   - 或在 Project 窗口右键该文件夹 → **Asset Manager → Import Materials In Selected Folder**
+
+4. Normal 贴图 Import Settings 设为 **Normal Map**；MetallicSmoothness：R=Metallic，A=Smoothness。
+
+## 批量导入多个角色
+
+将 \`${UNITY_ASSETS_ROOT}/\` 下多个角色文件夹（如 Mushpig、StoneMork）一并复制到 \`Assets/\`，
+然后对父文件夹执行 **Import All Materials In Folder** 即可遍历所有 \`.material.json\`。
+`;
+  await fs.writeFile(path.join(blenderRoot, readmeRel.split("/").join(path.sep)), readme, "utf-8");
+  files.push(readmeRel);
+
+  return { bundleRel, files };
+}
+
+async function writeUnityAssetsReadme(blenderRoot: string): Promise<string> {
+  const readmeRel = rel(UNITY_ASSETS_ROOT, "README.md");
+  const readme = `# UnityAssets
+
+由 AssetManagerTools Material Lab 导出的 Unity 就绪角色资产包。
+
+- \`Editor/\` — Asset Manager 导入菜单（复制到 Unity \`Assets/\` 一次即可）
+- \`<角色名>/\` — 每个角色的 Models、Textures、Shaders、Materials
+
+在 Unity 中使用 **Asset Manager → Import All Materials In Folder** 可批量生成材质。
+`;
+  await fs.writeFile(path.join(blenderRoot, readmeRel.split("/").join(path.sep)), readme, "utf-8");
+  return readmeRel;
+}
+
+export async function exportUnityMaterialPackage(
+  projectRoot: string,
+  blenderRoot: string,
+  state: MaterialLabState,
+): Promise<{ exportRoot: string; sharedRoot: string; files: string[] }> {
+  const importerRel = await writeSharedImporter(blenderRoot, state);
+  const readmeRootRel = await writeUnityAssetsReadme(blenderRoot);
+  const { bundleRel, files } = await exportProjectUnityBundle(projectRoot, blenderRoot, state);
+
+  state.slang.generatedHlsl = bundleHlslRelative(state.projectName);
   state.unity.exportedAt = new Date().toISOString();
 
   return {
-    exportRoot: "unity/",
-    files: [shaderRel, hlslRel, materialRel, importerRel, readmeRel],
+    exportRoot: `${bundleRel}/`,
+    sharedRoot: `${UNITY_ASSETS_ROOT}/`,
+    files: [importerRel, readmeRootRel, ...files],
   };
 }
 

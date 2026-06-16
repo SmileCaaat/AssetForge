@@ -84,6 +84,7 @@ export interface MergeMetallicSmoothnessResponse {
 export interface ExportUnityResponse {
   ok: boolean;
   exportRoot?: string;
+  sharedRoot?: string;
   files?: string[];
   message?: string;
   error?: string;

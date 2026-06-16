@@ -37,7 +37,7 @@ npm start
 
 ## 功能概览 (v0.5)
 
-> Material Lab 进度见 [AssetManagerTools_MaterialLab_AICODING.md](./AssetManagerTools_MaterialLab_AICODING.md) **「零、实现状态」**（阶段 A 已完成；阶段 B Slang、阶段 D 预览精调为后续）。
+> Material Lab 进度见 [AssetManagerTools_MaterialLab_AICODING.md](./AssetManagerTools_MaterialLab_AICODING.md) **「零、实现状态」**。Unity 实机 Toon 已验收；**Slang 阶段 B 已搁置**。
 
 ### 更新代码
 
@@ -99,12 +99,13 @@ npm start
 在生产视图工具栏点击 **「材质实验室」** 打开全屏 Modal：
 
 - 自动读取 `blender_texture_tags.json` 填充贴图槽
-- Toon 参数实时预览（FBX + BaseColor，近似 Unity 效果）
+- Toon 参数实时预览 + **8 组参数预设**
 - 保存 `.asset-manager/material_lab.json`
 - **合并 Metallic + Roughness** → `T_<Name>_MetallicSmoothness.png`（R=Metallic, A=Smoothness）
 - **检查 Unity 贴图规范**
-- **导出 Unity 材质包** 到 `<生产项目>/unity/`（Shader、fallback HLSL、material.json、导入脚本、README）
-- **尚未实现**：Slang `slangc` 编译（阶段 B）；Normal 光照 / Outline Pass / Matcap 预览（阶段 D）— 见 Material Lab 开发说明
+- **导出 Unity 材质** → `BlenderWorkspace/UnityAssets/<项目名>/`（Models、Textures、Shaders、Materials 一键整理）
+- Unity：**Asset Manager** 菜单支持单个 / 批量导入 `.material.json` 生成 `.mat`
+- **Slang 编译（阶段 B）已搁置** — 使用内置 fallback HLSL，Unity 效果已满足需求
 
 ---
 
@@ -119,6 +120,9 @@ npm start
 │       │   └── concept_tags.json
 │       └── …
 └── BlenderWorkspace/            # Blender 生产
+    ├── UnityAssets/             # Material Lab 导出的 Unity 就绪角色包
+    │   ├── Editor/              # Asset Manager 导入脚本（拷入 Unity 一次）
+    │   └── <项目名>/            # Models / Textures / Shaders / Materials
     ├── projects/
     │   └── <项目名>/
     │       ├── textures/

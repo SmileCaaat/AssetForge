@@ -1,29 +1,47 @@
-# Unity 导入说明 — {{DISPLAY_NAME}} ({{PROJECT_NAME}})
+# Unity 导入说明 — AssetManagerTools Material Lab
 
-由 AssetManagerTools Material Lab 自动生成。
+工作区共享 Editor 脚本 + 各角色独立资产包。
 
-## 文件清单
+## 目录结构
 
-- `shaders/ToonURP.shader` — URP Toon Shader（{{SHADER_NAME}}）
-- `shaders/Generated/ToonCore.generated.hlsl` — Toon 核心 HLSL
-- `materials/{{MATERIAL_NAME}}.material.json` — 材质参数
-- `importer/AssetManagerMaterialImporter.cs` — Unity Editor 导入脚本
+```text
+BlenderWorkspace/UnityAssets/
+├── Editor/
+│   └── AssetManagerMaterialImporter.cs    ← 首次复制到 Unity Assets（只需一次）
+├── Mushpig/
+│   ├── Models/
+│   ├── Textures/
+│   ├── Shaders/
+│   ├── Materials/
+│   │   └── M_Mushpig.material.json
+│   ├── bundle.manifest.json
+│   └── README.md
+├── StoneMork/
+└── Punchgob/
+```
 
-## 导入步骤
+## 导入 Unity
 
-1. 将整个 `unity/` 文件夹复制到 Unity 项目的 `Assets/` 下（或与本项目 `textures/`、`exports/` 保持相对路径一致）。
-2. 将 `importer/AssetManagerMaterialImporter.cs` 放入 `Assets/Editor/`。
-3. 在 Unity 菜单选择 **Asset Manager → Import Material From JSON**。
-4. 选择 `materials/{{MATERIAL_NAME}}.material.json`。
-5. 在 Scene 中创建材质并指定贴图；Normal 贴图请在 Import Settings 中设为 **Normal Map**。
-6. 在 Unity 中人工验收 Shader 编译与画面效果。
+### 首次
 
-## 贴图路径
+1. 复制 `UnityAssets/Editor/` 到 Unity 的 `Assets/`（任意位置，例如 `Assets/AssetManagerTools/Editor/`）。
+2. 等待 Unity 编译，菜单出现 **Asset Manager**。
 
-JSON 中的贴图路径相对于 Blender 生产项目根目录。若 Unity 项目结构不同，请在导入后手动重新指定贴图。
+### 每个角色
 
-## 验收建议
+1. 复制 `UnityAssets/<角色名>/` 到 Unity，例如 `Assets/Characters/Mushpig/`。
+2. 任选一种导入材质：
+   - **Asset Manager → Import Material From JSON…** — 选 `Materials/M_<角色>.material.json`
+   - **Asset Manager → Import All Materials In Folder…** — 选 `Mushpig` 或整个 `UnityAssets`
+   - Project 窗口右键文件夹 → **Asset Manager → Import Materials In Selected Folder**
 
-- Shader 能否编译无报错
-- BaseColor / RampSteps / ShadowStrength / Rim 参数是否生效
-- MetallicSmoothness 通道是否正确（R=Metallic, A=Smoothness）
+生成的 `.mat` 会出现在对应 `Materials/` 目录下。
+
+### 批量（多个角色）
+
+将所有角色文件夹复制到 `Assets/` 后，对父目录执行 **Import All Materials In Folder** 即可遍历所有 `.material.json`。
+
+## 贴图设置
+
+- Normal → Import Settings → **Normal Map**
+- MetallicSmoothness → R=Metallic，A=Smoothness

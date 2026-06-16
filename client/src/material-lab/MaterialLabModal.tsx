@@ -37,28 +37,32 @@ export function MaterialLabModal({
   const [checkItems, setCheckItems] = useState<MaterialCheckItem[]>([]);
   const [exportFiles, setExportFiles] = useState<string[]>([]);
   const savedSnapshot = useRef("");
+  const onNotifyRef = useRef(onNotify);
+  const onRefreshProjectRef = useRef(onRefreshProject);
+  onNotifyRef.current = onNotify;
+  onRefreshProjectRef.current = onRefreshProject;
 
-  const loadState = useCallback(async () => {
-    setLoading(true);
+  const loadState = useCallback(async (options?: { showLoading?: boolean }) => {
+    const showLoading = options?.showLoading ?? true;
+    if (showLoading) setLoading(true);
     try {
       const res = await fetchMaterialLabState(project.id);
       setState(res.state);
       savedSnapshot.current = JSON.stringify(res.state);
       setDirty(false);
       if (res.warnings?.length) {
-        onNotify(res.warnings.join("；"), "info");
+        onNotifyRef.current(res.warnings.join("；"), "info");
       }
     } catch (error) {
-      onNotify(String(error), "error");
+      onNotifyRef.current(String(error), "error");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  }, [project.id, onNotify]);
+  }, [project.id]);
 
   useEffect(() => {
     void loadState();
   }, [loadState]);
-
   const updateState = (next: MaterialLabState) => {
     setState(next);
     setDirty(JSON.stringify(next) !== savedSnapshot.current);
@@ -76,9 +80,9 @@ export function MaterialLabModal({
       await saveMaterialLabState(project.id, state);
       savedSnapshot.current = JSON.stringify(state);
       setDirty(false);
-      onNotify("已保存 material_lab.json");
+      onNotifyRef.current("已保存 material_lab.json");
     } catch (error) {
-      onNotify(String(error), "error");
+      onNotifyRef.current(String(error), "error");
     } finally {
       setSaving(false);
     }
@@ -86,7 +90,7 @@ export function MaterialLabModal({
 
   const handleRemap = async () => {
     await loadState();
-    onNotify("已根据贴图标记重新匹配");
+    onNotifyRef.current("已根据贴图标记重新匹配");
   };
 
   const handleMerge = async () => {
@@ -94,10 +98,10 @@ export function MaterialLabModal({
     try {
       const res = await mergeMetallicSmoothness(project.id);
       await loadState();
-      onRefreshProject?.();
-      onNotify(res.message ?? "合并完成");
+      onRefreshProjectRef.current?.();
+      onNotifyRef.current(res.message ?? "合并完成");
     } catch (error) {
-      onNotify(String(error), "error");
+      onNotifyRef.current(String(error), "error");
     } finally {
       setMerging(false);
     }
@@ -109,7 +113,7 @@ export function MaterialLabModal({
       const res = await checkUnityTextureStandard(project.id);
       setCheckItems(res.items ?? []);
     } catch (error) {
-      onNotify(String(error), "error");
+      onNotifyRef.current(String(error), "error");
     } finally {
       setChecking(false);
     }
@@ -125,10 +129,10 @@ export function MaterialLabModal({
       }
       const res = await exportUnityMaterialPackage(project.id);
       setExportFiles(res.files ?? []);
-      await loadState();
-      onNotify(res.message ?? "导出完成");
+      await loadState({ showLoading: false });
+      onNotifyRef.current(res.message ?? "导出完成");
     } catch (error) {
-      onNotify(String(error), "error");
+      onNotifyRef.current(String(error), "error");
     } finally {
       setExporting(false);
     }
@@ -138,7 +142,7 @@ export function MaterialLabModal({
     try {
       await openMaterialLabExportFolder(project.id);
     } catch (error) {
-      onNotify(String(error), "error");
+      onNotifyRef.current(String(error), "error");
     }
   };
 
@@ -159,10 +163,10 @@ export function MaterialLabModal({
               {checking ? "检查中…" : "检查贴图规范"}
             </button>
             <button type="button" className="preview-action-btn" disabled={exporting || !state} onClick={() => void handleExport()}>
-              {exporting ? "导出中…" : "导出 Unity 包"}
+              {exporting ? "导出中…" : "导出 Unity 材质"}
             </button>
-            <button type="button" className="preview-action-btn" onClick={() => void handleOpenExport()}>
-              打开 unity/
+            <button type="button" className="preview-action-btn" onClick={() => void handleOpenExport()} title="打开 BlenderWorkspace/UnityAssets/<项目名>/">
+              打开 Unity 资产包
             </button>
             <button type="button" className="preview-action-btn" onClick={handleClose}>
               关闭
@@ -198,6 +202,10 @@ export function MaterialLabModal({
               {exportFiles.length > 0 && (
                 <div className="material-lab-panel export-panel">
                   <h4>最近导出</h4>
+                  <p className="muted export-panel-hint">
+                    导出至 <code>BlenderWorkspace/UnityAssets/&lt;项目名&gt;/</code>（Models · Textures · Shaders · Materials）。
+                    首次请将 <code>UnityAssets/Editor/</code> 拷入 Unity；批量导入用菜单 Import All Materials In Folder。
+                  </p>
                   <ul className="export-file-list">
                     {exportFiles.map((f) => (
                       <li key={f}>{f}</li>
@@ -215,6 +223,7 @@ export function MaterialLabModal({
                 projectRoot={projectRoot}
                 modelRelativePath={state.preview.modelPath}
                 baseColorRelativePath={state.textures.baseColor.path}
+                normalRelativePath={state.textures.normal.path}
                 params={state.params}
               />
             </main>

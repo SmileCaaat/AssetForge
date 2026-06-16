@@ -2,16 +2,17 @@ import { Router } from "express";
 import fs from "fs/promises";
 import path from "path";
 import { findProject, loadConfig } from "../config.js";
-import { getAllowedRoots, getActiveWorkspace } from "../workspacePaths.js";
+import { getAllowedRoots, getActiveWorkspace, getBlenderRoot } from "../workspacePaths.js";
 import { resolveProjectPathAccessible } from "../projectPaths.js";
+import { mergeMetallicRoughness } from "../services/metallicSmoothnessMerge.js";
+import { checkUnityTextureStandard } from "../services/materialChecker.js";
+import { exportUnityMaterialPackage } from "../services/unityShaderExporter.js";
+import { UNITY_ASSETS_ROOT } from "../services/unityExportPaths.js";
 import {
   loadMaterialLabState,
   saveMaterialLabState,
   validateMaterialLabState,
 } from "../services/materialLabService.js";
-import { mergeMetallicRoughness } from "../services/metallicSmoothnessMerge.js";
-import { checkUnityTextureStandard } from "../services/materialChecker.js";
-import { exportUnityMaterialPackage } from "../services/unityShaderExporter.js";
 
 export const materialLabRouter = Router();
 
@@ -97,10 +98,15 @@ materialLabRouter.post("/:id/material-lab/export-unity", async (req, res) => {
     const active = getActiveWorkspace(state);
     const project = findProject(state, req.params.id);
     const projectRoot = await resolveProjectPathAccessible(active, project, "blender");
+    const blenderRoot = getBlenderRoot(active);
     const { state: labState } = await loadMaterialLabState(projectRoot, project);
-    const exported = await exportUnityMaterialPackage(projectRoot, labState);
+    const exported = await exportUnityMaterialPackage(projectRoot, blenderRoot, labState);
     await saveMaterialLabState(projectRoot, labState);
-    res.json({ ok: true, ...exported, message: "Unity 材质包已导出" });
+    res.json({
+      ok: true,
+      ...exported,
+      message: `已导出 UnityAssets/${labState.projectName}/（含模型、贴图、Shader、材质 JSON）`,
+    });
   } catch (error) {
     res.status(400).json({ ok: false, error: String(error), message: String(error) });
   }
@@ -112,11 +118,16 @@ materialLabRouter.post("/:id/material-lab/open-export-folder", async (req, res) 
     const active = getActiveWorkspace(state);
     const project = findProject(state, req.params.id);
     const projectRoot = await resolveProjectPathAccessible(active, project, "blender");
-    const unityDir = path.join(projectRoot, "unity");
-    await fs.mkdir(unityDir, { recursive: true });
+    const { state: labState } = await loadMaterialLabState(projectRoot, project);
+    const bundleDir = path.join(
+      getBlenderRoot(active),
+      UNITY_ASSETS_ROOT.split("/").join(path.sep),
+      labState.projectName,
+    );
+    await fs.mkdir(bundleDir, { recursive: true });
     const { openInExplorer } = await import("../shell.js");
-    await openInExplorer(unityDir);
-    res.json({ ok: true, path: unityDir });
+    await openInExplorer(bundleDir);
+    res.json({ ok: true, path: bundleDir });
   } catch (error) {
     res.status(400).json({ ok: false, error: String(error), message: String(error) });
   }

@@ -17,7 +17,7 @@ Shader "{{SHADER_NAME}}"
         _RimPower ("Rim Power", Float) = 4
         _RimIntensity ("Rim Intensity", Float) = 2.5
 
-        _OutlineWidth ("Outline Width", Float) = 0.015
+        _OutlineWidth ("Outline Width", Range(0, 0.05)) = 0.01
         _OutlineColor ("Outline Color", Color) = (0,0,0,1)
     }
 
@@ -28,6 +28,58 @@ Shader "{{SHADER_NAME}}"
             "RenderPipeline" = "UniversalPipeline"
             "RenderType" = "Opaque"
             "Queue" = "Geometry"
+        }
+
+        Pass
+        {
+            Name "Outline"
+            Tags { "LightMode" = "SRPDefaultUnlit" }
+            Cull Front
+            ZWrite On
+
+            HLSLPROGRAM
+            #pragma vertex outlineVert
+            #pragma fragment outlineFrag
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            float _OutlineWidth;
+            float4 _OutlineColor;
+
+            struct OutlineAttributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+            };
+
+            struct OutlineVaryings
+            {
+                float4 positionHCS : SV_POSITION;
+            };
+
+            OutlineVaryings outlineVert(OutlineAttributes input)
+            {
+                OutlineVaryings output;
+
+                VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
+                VertexNormalInputs normalInput = GetVertexNormalInputs(input.normalOS);
+
+                // 裁剪空间外扩：屏幕像素级厚度，与 FBX 单位无关
+                float4 positionCS = vertexInput.positionCS;
+                float3 normalCS = TransformWorldToHClipDir(normalInput.normalWS, true);
+                positionCS.xy += normalCS.xy * _OutlineWidth * positionCS.w;
+
+                output.positionHCS = positionCS;
+                return output;
+            }
+
+            half4 outlineFrag(OutlineVaryings input) : SV_Target
+            {
+                if (_OutlineWidth <= 0.0001)
+                    discard;
+                return half4(_OutlineColor.rgb, 1);
+            }
+            ENDHLSL
         }
 
         Pass
@@ -46,8 +98,11 @@ Shader "{{SHADER_NAME}}"
 
             TEXTURE2D(_BaseMap);
             SAMPLER(sampler_BaseMap);
+            TEXTURE2D(_BumpMap);
+            SAMPLER(sampler_BumpMap);
 
             float4 _BaseColorTint;
+            float _BumpScale;
             float _RampSteps;
             float _ShadowStrength;
             float4 _RimColor;
@@ -58,6 +113,7 @@ Shader "{{SHADER_NAME}}"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
+                float4 tangentOS : TANGENT;
                 float2 uv : TEXCOORD0;
             };
 
@@ -66,15 +122,31 @@ Shader "{{SHADER_NAME}}"
                 float4 positionHCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
-                float2 uv : TEXCOORD2;
+                float3 tangentWS : TEXCOORD2;
+                float3 bitangentWS : TEXCOORD3;
+                float2 uv : TEXCOORD4;
             };
+
+            float3 SampleNormalWS(Varyings input)
+            {
+                float3 normalWS = normalize(input.normalWS);
+                float3 map = UnpackNormalScale(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, input.uv), _BumpScale);
+                float3 tangentWS = normalize(input.tangentWS);
+                float3 bitangentWS = normalize(input.bitangentWS);
+                float3x3 tbn = float3x3(tangentWS, bitangentWS, normalWS);
+                return normalize(mul(map, tbn));
+            }
 
             Varyings vert(Attributes input)
             {
                 Varyings output;
-                output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
-                output.positionHCS = TransformWorldToHClip(output.positionWS);
-                output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                VertexPositionInputs posInputs = GetVertexPositionInputs(input.positionOS.xyz);
+                VertexNormalInputs normInputs = GetVertexNormalInputs(input.normalOS, input.tangentOS);
+                output.positionHCS = posInputs.positionCS;
+                output.positionWS = posInputs.positionWS;
+                output.normalWS = normInputs.normalWS;
+                output.tangentWS = normInputs.tangentWS;
+                output.bitangentWS = normInputs.bitangentWS;
                 output.uv = input.uv;
                 return output;
             }
@@ -85,7 +157,7 @@ Shader "{{SHADER_NAME}}"
                 float3 baseColor = baseSample.rgb * _BaseColorTint.rgb;
 
                 Light mainLight = GetMainLight();
-                float3 normalWS = normalize(input.normalWS);
+                float3 normalWS = SampleNormalWS(input);
                 float3 lightDirWS = normalize(mainLight.direction);
                 float3 viewDirWS = normalize(GetWorldSpaceViewDir(input.positionWS));
 

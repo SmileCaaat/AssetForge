@@ -74,6 +74,6 @@ export const DEFAULT_MATERIAL_LAB_PARAMS: MaterialLabParams = {
   rimIntensity: 2.5,
   matcapStrength: 0,
   outlineEnabled: true,
-  outlineWidth: 0.015,
+  outlineWidth: 0.01,
   outlineColor: [0, 0, 0, 1],
 };

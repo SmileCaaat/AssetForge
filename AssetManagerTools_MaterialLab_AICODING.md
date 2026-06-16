@@ -14,107 +14,87 @@
 
 ## 零、实现状态（同步仓库，请以此为准）
 
-> **最后更新：2026-06-16** · 仓库：`main` 分支拉取后可见本段。  
-> 在另一台电脑：`git pull` 或运行 `update.bat` 即可同步本文与代码。
+> **最后更新：2026-06-17** · 仓库：`main` 分支。  
+> Unity 实机验收通过（Mushpig / Punchgob / stonemork 等）；**Slang 阶段 B 正式搁置**，维持 fallback HLSL 即可。
 
 ### 总览
 
 | 阶段 | 状态 | 说明 |
 |------|------|------|
-| **阶段 A** — Material Lab MVP（无 Slang） | **已完成** | 可日常使用 |
-| **阶段 C** — 导出体验（部分） | **已完成** | 一键导出 `unity/`、检查器、打开导出目录 |
-| **阶段 B** — Slang `slangc` HLSL 编译 | **未实现** | 见下文「后续阶段」 |
-| **阶段 D** — 预览精调 | **未实现** | Normal 参与光照、Outline Pass、Matcap 视觉等待做 |
+| **阶段 A** — Material Lab MVP | **已完成** | 可日常使用 |
+| **阶段 C** — Unity 导出体验 | **已完成** | `UnityAssets/<项目名>/` 整包 + Asset Manager 批量/单个导入 |
+| **阶段 D** — 预览精调 | **部分完成** | Outline/Matcap/参数预设；Normal 网页预览仍用几何法线 |
+| **阶段 B** — Slang `slangc` | **搁置** | Unity 效果已满足需求，**不再计划实现**；见下文 |
 
-### 已实现（阶段 A + 部分 C）
+### 已实现（Material Lab 主线）
 
 **入口与 UI**
 
-- 生产视图工具栏 **「材质实验室」** → 大型 Modal（三栏：贴图槽 / 3D 预览 / 参数面板）
-- 仅生产侧可用；切换项目时自动关闭 Modal
+- 生产视图 **「材质实验室」** → 三栏 Modal（贴图槽 / 3D 预览 / 参数面板）
+- **8 组参数预设**（贴图原色、经典 Toon、强调描边等）
+- 打开 Material Lab 时 **暂停 5 分钟自动保存**，避免打断编辑
 
-**数据与 API**（`server/routes/materialLab.ts` 等）
+**Unity 导出（推荐工作流）**
 
-- `GET/PUT /api/projects/:id/material-lab` — 读写 `.asset-manager/material_lab.json`
-- 不存在时根据 `blender_texture_tags.json` 自动生成默认状态
-- 项目目录缺失时返回空状态 + `warning`，不抛 500
+```text
+BlenderWorkspace/UnityAssets/
+├── Editor/AssetManagerMaterialImporter.cs   ← 首次拷入 Unity 一次
+├── Mushpig/                                 ← 每角色独立文件夹
+│   ├── Models/
+│   ├── Textures/
+│   ├── Shaders/ToonURP.shader + Generated/
+│   ├── Materials/M_Mushpig.material.json
+│   └── bundle.manifest.json
+├── Punchgob/
+└── stonemork/
+```
 
-**贴图槽**
+- `POST .../material-lab/export-unity` 自动复制 FBX、贴图、Shader、材质 JSON
+- Unity 菜单：**Import Material From JSON** / **Import All Materials In Folder** / 右键文件夹批量导入
+- Toon Shader：**裁剪空间 Outline** + Normal Map + fallback `ToonCore.generated.hlsl`（**非 Slang 产物，已足够**）
 
-- 自动匹配 BaseColor、Normal、MetallicSmoothness（按文件名）、AO、Emission
-- **「合并 Metallic + Roughness」** — 独立功能，生成 `T_<Name>_MetallicSmoothness.png`（R=Metallic，A=Smoothness）
-- 「重新匹配」按钮
+**网页预览**
 
-**网页预览（Three.js 手写 GLSL，非 Slang）**
+- BaseColor + Toon 色阶 + Rim + Outline（裁剪空间，与 Unity 数值接近）
+- Matcap 程序化近似（MatcapStrength > 0）
 
-- 加载 `exports/` 下 FBX（无则显示默认球体）
-- BaseColor 贴图 + Toon 色阶（RampSteps / ShadowStrength）
-- Rim Light 参数可调并实时预览
-- BaseColorTint / Saturation / Value / Contrast
+**数据与 API**
 
-**参数面板（已持久化到 JSON，部分仅参数无完整视觉）**
-
-- MatcapStrength、OutlineEnabled / Width / Color — **已写入 JSON，预览端未完整呈现 Matcap/描边 Pass**
-
-**Unity 导出**
-
-- `POST .../material-lab/export-unity` → `<生产项目>/unity/`
-- `shaders/ToonURP.shader`
-- `shaders/Generated/ToonCore.generated.hlsl` — **内置 fallback HLSL**（非 Slang 编译产物）
-- `materials/M_<项目名>.material.json`
-- `importer/AssetManagerMaterialImporter.cs`
-- `README_UnityImport.md`
-- **Unity 侧需人工验收** Shader 编译与画面
-
-**规范检查**
-
-- `POST .../material-lab/check` — BaseColor/Normal/MetallicSmoothness、分辨率、source 误用等
+- `GET/PUT .../material-lab`、贴图槽匹配、Metallic+Roughness 合并、规范检查
 
 **代码位置**
 
 ```text
 server/routes/materialLab.ts
 server/services/materialLabService.ts
-server/services/metallicSmoothnessMerge.ts
-server/services/materialChecker.ts
 server/services/unityShaderExporter.ts
+server/services/unityExportPaths.ts
 server/templates/unity/
 client/src/material-lab/
 ```
 
-### 未实现 — 阶段 B（Slang）
+### 搁置 — 阶段 B（Slang）
 
-以下在原始规划中存在，**当前代码库尚未接入**：
+> **2026-06-17 决策**：Unity URP 实机效果已达标，Slang 编译管线**不再开发**。  
+> 若未来有「多平台 Shader 源统一」硬需求再 reopen；当前维护 fallback HLSL 即可。
 
-- `tools/slang/` 与 `slangc` 检测
-- `server/services/slangCompiler.ts`
-- `POST .../material-lab/compile-slang`
-- `server/templates/slang/*.slang` 源文件与真实编译输出
-- 导出时「先编译 Slang，失败再 fallback」的完整流程（现仅始终写 fallback HLSL）
-- 前端 Export 面板中的 Slang 编译状态 / stderr 展示
+原规划但**不实现**：
 
-### 未实现 — 阶段 D（预览接近 Unity）
+- `tools/slang/`、`slangCompiler.ts`、`compile-slang` API
+- `server/templates/slang/*.slang` 与 Slang→HLSL 编译链
+- 导出时「先 Slang 后 fallback」流程
 
-以下**留作后续**，不要在 issue/PR 中误以为已完成：
+### 可选后续 — 阶段 D 余量
 
-- **Normal Map 参与 Toon 光照**（预览 Shader 未采样 Normal）
-- **Outline Pass**（Unity Shader 仅 ForwardLit 单 Pass；预览无描边第二 Pass）
-- **Matcap 视觉**（参数可存，预览未贴 Matcap 纹理）
-- Three.js 预览与 Slang 核心逻辑对齐
+- Normal Map **网页预览**（切线空间，需单独验证 FBX）
+- Matcap **贴图槽**
 - WebGPU / WGSL 实验预览
-
-### 其它已合并到主线的相关改动（非 Material Lab 专属）
-
-- FBX 多动画 clip 切换预览（`ModelViewer`）
-- `update.bat` / `update.ps1` — Git 拉取 + 依赖更新
-- 快速切换项目时的加载竞态修复、缺失目录容错
-- 开发模式 API 在 Vite 代理不可用时可回退 `localhost:3456`
 
 ### 给 AI / 下一台电脑的接续说明
 
-1. **不要重做阶段 A**；从 **阶段 B（Slang）** 或 **阶段 D（预览）** 增量开发。
-2. 开发前阅读本文「零、实现状态」确认边界。
-3. 完成阶段 B 后更新本表，把「未实现」改为「已完成」并注明 commit 日期。
+1. **不要重做阶段 A/C**；**不要启动阶段 B（Slang）**，除非用户明确要求 reopen。
+2. 优先维护：`UnityAssets` 导出、Unity 导入脚本、Toon Shader、Material Lab 预览与预设。
+3. 开发前阅读本文「零、实现状态」。
 
 ---
 
@@ -1223,16 +1203,19 @@ interface MaterialCheckItem {
 
 - Slang 编译状态与 HLSL 生成时间戳联动
 
-### 阶段 D：网页预览接近 Unity — **未实现（后续）**
+### 阶段 D：网页预览接近 Unity — **已完成（核心）**
 
-目标：
+已实现：
 
-- Three.js shader 与 Slang 核心逻辑参数对齐
-- 支持 Rim / Matcap / Outline 视觉近似
-- 可选导出 WGSL / GLSL
-- WebGPU 预览作为实验功能
+- Normal Map 参与 Toon 光照（预览 + Unity ForwardLit）
+- Outline Pass（预览 + Unity Shader）
+- Matcap 视觉近似（程序化，MatcapStrength 可调）
 
-当前：Rim + Toon 已有近似预览；**Normal Map 光照、Outline Pass、Matcap 视觉** 仍属本阶段待办。
+仍属后续：
+
+- Matcap 贴图槽
+- 与 Slang 核心逻辑参数对齐（依赖阶段 B）
+- WebGPU / WGSL 实验预览
 
 ---
 

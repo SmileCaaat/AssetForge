@@ -8,6 +8,7 @@ import {
   type MaterialLabState,
   type MaterialLabTextureSlot,
 } from "../materialLabTypes.js";
+import { bundleHlslRelative } from "./unityExportPaths.js";
 
 const META_DIR = ".asset-manager";
 const STATE_FILE = "material_lab.json";
@@ -128,7 +129,7 @@ export async function buildDefaultMaterialLabState(
       enabled: true,
       source: "server/templates/slang/ToonCore.slang",
       lastCompiledAt: "",
-      generatedHlsl: "unity/shaders/Generated/ToonCore.generated.hlsl",
+      generatedHlsl: bundleHlslRelative(projectName),
     },
     unity: {
       shaderName: "AssetManagerTools/ToonURP",

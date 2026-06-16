@@ -8,10 +8,12 @@ import type { MaterialLabParams } from "./materialLabTypes";
 import { fileUrl } from "../api";
 import { disposeMaterial, disposeObject3D, disposeTexture } from "../lib/threeCleanup";
 
-const VERT = `
+/** 阶段 A 已验证的 Toon 核心（几何法线，不采样 Normal 贴图） */
+const TOON_VERT = `
 varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vViewDir;
+
 void main() {
   vUv = uv;
   vec4 worldPos = modelMatrix * vec4(position, 1.0);
@@ -21,9 +23,9 @@ void main() {
 }
 `;
 
-const FRAG = `
+const TOON_FRAG = `
 uniform sampler2D baseMap;
-uniform bool hasBaseMap;
+uniform float hasBaseMap;
 uniform vec4 baseColorTint;
 uniform float baseSaturation;
 uniform float baseValue;
@@ -33,6 +35,7 @@ uniform float shadowStrength;
 uniform vec3 rimColor;
 uniform float rimPower;
 uniform float rimIntensity;
+uniform float matcapStrength;
 uniform vec3 lightDir;
 varying vec2 vUv;
 varying vec3 vNormal;
@@ -46,8 +49,18 @@ vec3 adjustHSV(vec3 c) {
   return clamp(c, 0.0, 1.0);
 }
 
+vec3 sampleMatcap(vec3 worldNormal) {
+  vec3 viewNormal = normalize((viewMatrix * vec4(worldNormal, 0.0)).xyz);
+  vec2 muv = viewNormal.xy * 0.5 + 0.5;
+  float highlight = smoothstep(0.15, 0.75, 1.0 - length(muv - vec2(0.42, 0.38)));
+  float shade = smoothstep(0.05, 0.65, muv.y);
+  return mix(vec3(0.28, 0.32, 0.38), vec3(1.0, 0.97, 0.9), shade * 0.55 + highlight * 0.45);
+}
+
 void main() {
-  vec3 base = hasBaseMap ? texture2D(baseMap, vUv).rgb : vec3(0.75, 0.78, 0.82);
+  vec3 base = hasBaseMap > 0.5
+    ? texture2D(baseMap, vUv).rgb
+    : vec3(0.75, 0.78, 0.82);
   base *= baseColorTint.rgb;
   base = adjustHSV(base);
 
@@ -63,40 +76,52 @@ void main() {
   float rim = pow(1.0 - max(dot(n, v), 0.0), rimPower);
   color += rimColor * rim * rimIntensity;
 
+  if (matcapStrength > 0.001) {
+    vec3 mc = sampleMatcap(n);
+    color = mix(color, color * mc, matcapStrength);
+  }
+
   gl_FragColor = vec4(color, 1.0);
 }
 `;
 
-function ToonMesh({
-  modelUrl,
-  baseColorUrl,
-  params,
-}: {
-  modelUrl: string | null;
-  baseColorUrl: string | null;
-  params: MaterialLabParams;
-}) {
-  const texture = useMemo(() => {
-    if (!baseColorUrl) return null;
+const OUTLINE_VERT = `
+uniform float outlineWidth;
+
+void main() {
+  vec4 clipPos = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  vec3 clipNormal = normalize(mat3(projectionMatrix * modelViewMatrix) * normal);
+  clipPos.xy += clipNormal.xy * outlineWidth * clipPos.w;
+  gl_Position = clipPos;
+}
+`;
+
+const OUTLINE_FRAG = `
+uniform vec4 outlineColor;
+
+void main() {
+  gl_FragColor = outlineColor;
+}
+`;
+
+function useBaseTexture(url: string | null): THREE.Texture | null {
+  return useMemo(() => {
+    if (!url) return null;
     const loader = new THREE.TextureLoader();
-    const tex = loader.load(baseColorUrl);
+    const tex = loader.load(url);
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
-  }, [baseColorUrl]);
+  }, [url]);
+}
 
-  useEffect(() => {
-    return () => {
-      disposeTexture(texture);
-    };
-  }, [texture]);
-
+function useToonMaterial(texture: THREE.Texture | null, params: MaterialLabParams): THREE.ShaderMaterial {
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
-      vertexShader: VERT,
-      fragmentShader: FRAG,
+      vertexShader: TOON_VERT,
+      fragmentShader: TOON_FRAG,
       uniforms: {
         baseMap: { value: texture },
-        hasBaseMap: { value: Boolean(texture) },
+        hasBaseMap: { value: texture ? 1 : 0 },
         baseColorTint: { value: new THREE.Vector4(...params.baseColorTint) },
         baseSaturation: { value: params.baseSaturation },
         baseValue: { value: params.baseValue },
@@ -106,20 +131,17 @@ function ToonMesh({
         rimColor: { value: new THREE.Vector3(...params.rimColor.slice(0, 3)) },
         rimPower: { value: params.rimPower },
         rimIntensity: { value: params.rimIntensity },
+        matcapStrength: { value: params.matcapStrength },
         lightDir: { value: new THREE.Vector3(0.4, 0.8, 0.5) },
       },
     });
   }, [texture]);
 
-  useEffect(() => {
-    return () => {
-      disposeMaterial(material);
-    };
-  }, [material]);
+  useEffect(() => () => disposeMaterial(material), [material]);
 
   useEffect(() => {
     material.uniforms.baseMap.value = texture;
-    material.uniforms.hasBaseMap.value = Boolean(texture);
+    material.uniforms.hasBaseMap.value = texture ? 1 : 0;
   }, [material, texture]);
 
   useEffect(() => {
@@ -132,41 +154,142 @@ function ToonMesh({
     material.uniforms.rimColor.value.set(...params.rimColor.slice(0, 3));
     material.uniforms.rimPower.value = params.rimPower;
     material.uniforms.rimIntensity.value = params.rimIntensity;
+    material.uniforms.matcapStrength.value = params.matcapStrength;
   }, [material, params]);
 
-  if (modelUrl) {
-    return <FbxToon modelUrl={modelUrl} material={material} />;
-  }
+  return material;
+}
 
+function useOutlineMaterial(params: MaterialLabParams): THREE.ShaderMaterial {
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: OUTLINE_VERT,
+      fragmentShader: OUTLINE_FRAG,
+      uniforms: {
+        outlineWidth: { value: params.outlineWidth },
+        outlineColor: { value: new THREE.Vector4(...params.outlineColor) },
+      },
+      side: THREE.BackSide,
+      depthWrite: true,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    });
+  }, []);
+
+  useEffect(() => () => disposeMaterial(material), [material]);
+
+  useEffect(() => {
+    material.uniforms.outlineWidth.value = params.outlineEnabled ? params.outlineWidth : 0;
+    material.uniforms.outlineColor.value.set(...params.outlineColor);
+  }, [material, params]);
+
+  return material;
+}
+
+function applyMaterial(root: THREE.Object3D, material: THREE.Material): void {
+  root.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      (child as THREE.Mesh).material = material;
+    }
+  });
+}
+
+function SpherePreview({
+  toonMaterial,
+  outlineMaterial,
+  outlineEnabled,
+}: {
+  toonMaterial: THREE.ShaderMaterial;
+  outlineMaterial: THREE.ShaderMaterial;
+  outlineEnabled: boolean;
+}) {
   return (
-    <mesh material={material}>
-      <sphereGeometry args={[1, 48, 48]} />
-    </mesh>
+    <>
+      {outlineEnabled && (
+        <mesh material={outlineMaterial}>
+          <sphereGeometry args={[1, 48, 48]} />
+        </mesh>
+      )}
+      <mesh material={toonMaterial}>
+        <sphereGeometry args={[1, 48, 48]} />
+      </mesh>
+    </>
   );
 }
 
-function FbxToon({ modelUrl, material }: { modelUrl: string; material: THREE.ShaderMaterial }) {
+function FbxPreview({
+  modelUrl,
+  toonMaterial,
+  outlineMaterial,
+  outlineEnabled,
+}: {
+  modelUrl: string;
+  toonMaterial: THREE.ShaderMaterial;
+  outlineMaterial: THREE.ShaderMaterial;
+  outlineEnabled: boolean;
+}) {
   const cached = useFBX(modelUrl);
-  const clone = useMemo(() => SkeletonUtils.clone(cached) as THREE.Group, [cached, modelUrl]);
+  const body = useMemo(() => SkeletonUtils.clone(cached) as THREE.Group, [cached, modelUrl]);
+  const outline = useMemo(() => {
+    if (!outlineEnabled) return null;
+    return SkeletonUtils.clone(cached) as THREE.Group;
+  }, [cached, modelUrl, outlineEnabled]);
+
+  useEffect(() => () => disposeObject3D(body), [body]);
+  useEffect(() => {
+    if (outline) return () => disposeObject3D(outline);
+  }, [outline]);
 
   useEffect(() => {
-    return () => {
-      disposeObject3D(clone);
-    };
-  }, [clone]);
+    applyMaterial(body, toonMaterial);
+  }, [body, toonMaterial]);
 
   useEffect(() => {
-    clone.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        (child as THREE.Mesh).material = material;
-      }
-    });
-  }, [clone, material]);
+    if (!outline) return;
+    applyMaterial(outline, outlineMaterial);
+  }, [outline, outlineMaterial]);
 
   return (
     <Center>
-      <primitive object={clone} />
+      {outline && <primitive object={outline} />}
+      <primitive object={body} />
     </Center>
+  );
+}
+
+function ToonMesh({
+  modelUrl,
+  baseColorUrl,
+  params,
+}: {
+  modelUrl: string | null;
+  baseColorUrl: string | null;
+  params: MaterialLabParams;
+}) {
+  const texture = useBaseTexture(baseColorUrl);
+  useEffect(() => () => disposeTexture(texture), [texture]);
+
+  const toonMaterial = useToonMaterial(texture, params);
+  const outlineMaterial = useOutlineMaterial(params);
+
+  if (modelUrl) {
+    return (
+      <FbxPreview
+        modelUrl={modelUrl}
+        toonMaterial={toonMaterial}
+        outlineMaterial={outlineMaterial}
+        outlineEnabled={params.outlineEnabled}
+      />
+    );
+  }
+
+  return (
+    <SpherePreview
+      toonMaterial={toonMaterial}
+      outlineMaterial={outlineMaterial}
+      outlineEnabled={params.outlineEnabled}
+    />
   );
 }
 
@@ -197,7 +320,14 @@ interface MaterialPreviewCanvasProps {
   projectRoot: string | null;
   modelRelativePath: string;
   baseColorRelativePath: string;
+  normalRelativePath: string;
   params: MaterialLabParams;
+}
+
+function resolveFileUrl(projectRoot: string | null, relativePath: string): string | null {
+  if (!projectRoot || !relativePath) return null;
+  const abs = `${projectRoot.replace(/\\/g, "/")}/${relativePath}`.replace(/\/+/g, "/");
+  return fileUrl(abs);
 }
 
 export function MaterialPreviewCanvas({
@@ -206,17 +336,14 @@ export function MaterialPreviewCanvas({
   baseColorRelativePath,
   params,
 }: MaterialPreviewCanvasProps) {
-  const modelUrl = useMemo(() => {
-    if (!projectRoot || !modelRelativePath) return null;
-    const abs = `${projectRoot.replace(/\\/g, "/")}/${modelRelativePath}`.replace(/\/+/g, "/");
-    return fileUrl(abs);
-  }, [projectRoot, modelRelativePath]);
-
-  const baseColorUrl = useMemo(() => {
-    if (!projectRoot || !baseColorRelativePath) return null;
-    const abs = `${projectRoot.replace(/\\/g, "/")}/${baseColorRelativePath}`.replace(/\/+/g, "/");
-    return fileUrl(abs);
-  }, [projectRoot, baseColorRelativePath]);
+  const modelUrl = useMemo(
+    () => resolveFileUrl(projectRoot, modelRelativePath),
+    [projectRoot, modelRelativePath],
+  );
+  const baseColorUrl = useMemo(
+    () => resolveFileUrl(projectRoot, baseColorRelativePath),
+    [projectRoot, baseColorRelativePath],
+  );
 
   const canvasKey = `${modelUrl ?? "none"}-${baseColorUrl ?? "none"}`;
 
