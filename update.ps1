@@ -1,10 +1,11 @@
-# AssetManagerTools — 从 GitHub 拉取最新代码并更新依赖
-# 用法:
-#   .\update.ps1              拉取当前分支更新
-#   .\update.ps1 -Install     拉取后强制 npm install
-#   .\update.ps1 -SkipProxy   不使用本地代理
+# AssetManagerTools - git pull and npm install
 #
-# 代理: 默认尝试 http://127.0.0.1:7897 ；也可事先设置环境变量 HTTP_PROXY / HTTPS_PROXY
+# Usage:
+#   .\update.ps1
+#   .\update.ps1 -Install
+#   .\update.ps1 -SkipProxy
+#
+# Proxy: default http://127.0.0.1:7897, or set HTTP_PROXY / HTTPS_PROXY
 
 param(
     [switch]$Install,
@@ -12,7 +13,6 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 Set-Location $PSScriptRoot
 
@@ -32,11 +32,11 @@ function Write-Err([string]$Message) {
     Write-Host "[update] $Message" -ForegroundColor Red
 }
 
-function Test-Command([string]$Name): bool {
+function Test-Command([string]$Name) {
     return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
-function Get-GitProxyArgs(): string[] {
+function Get-GitProxyArgs() {
     if ($SkipProxy) { return @() }
 
     $proxy = $env:HTTPS_PROXY
@@ -55,112 +55,117 @@ function Invoke-Git {
     }
 }
 
-function Needs-NpmInstall(): bool {
-    param([string]$LockFile)
+function Test-NeedsNpmInstall([string]$LockFile) {
     if (-not (Test-Path $LockFile)) { return $false }
     $stamp = "$LockFile.updated"
     if (-not (Test-Path $stamp)) { return $true }
     return (Get-Item $LockFile).LastWriteTimeUtc -gt (Get-Item $stamp).LastWriteTimeUtc
 }
 
-function Mark-NpmInstalled([string]$LockFile) {
-    Set-Content -Path "$LockFile.updated" -Value (Get-Date -Format "o") -Encoding UTF8
+function Set-NpmInstalledStamp([string]$LockFile) {
+    Set-Content -Path "$LockFile.updated" -Value (Get-Date -Format "o") -NoNewline
 }
 
 if (-not (Test-Command git)) {
-    Write-Err "未找到 git，请先安装 Git: https://git-scm.com/download/win"
+    Write-Err "Git not found. Install from https://git-scm.com/download/win"
     exit 1
 }
 
 if (-not (Test-Path ".git")) {
-    Write-Err "当前目录不是 Git 仓库。请先在项目根目录执行 git clone。"
+    Write-Err "Not a git repository. Run git clone in the project root first."
     exit 1
 }
 
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 if (-not $branch -or $branch -eq "HEAD") {
-    Write-Err "无法识别当前分支。"
+    Write-Err "Cannot detect current branch."
     exit 1
 }
 
-Write-Step "当前分支: $branch"
+Write-Step "Branch: $branch"
 
 $dirty = git status --porcelain
 if ($dirty) {
-    Write-Warn "工作区有未提交修改（拉取可能失败或产生冲突）:"
+    Write-Warn "Working tree has uncommitted changes (pull may fail or conflict):"
     git status -sb
     Write-Host ""
-    $answer = Read-Host "仍要继续拉取? [y/N]"
+    $answer = Read-Host "Continue anyway? [y/N]"
     if ($answer -notmatch '^[yY]') {
-        Write-Step "已取消。"
+        Write-Step "Cancelled."
         exit 0
     }
 }
 
+$localRev = ""
+$remoteRev = ""
+$pulled = $false
+
 try {
-    Write-Step "正在 fetch origin..."
+    Write-Step "Fetching origin..."
     Invoke-Git fetch origin $branch
 
     $localRev = (git rev-parse HEAD).Trim()
     $remoteRev = (git rev-parse "origin/$branch" 2>$null).Trim()
     if (-not $remoteRev) {
-        throw "远程分支 origin/$branch 不存在。"
+        throw "Remote branch origin/$branch does not exist."
     }
 
     if ($localRev -eq $remoteRev) {
-        Write-Ok "已是最新版本 ($($localRev.Substring(0, 7)))。"
+        Write-Ok "Already up to date ($($localRev.Substring(0, 7)))."
     } else {
-        Write-Step "正在 pull origin/$branch ..."
+        Write-Step "Pulling origin/$branch ..."
         Invoke-Git pull --ff-only origin $branch
+        $pulled = $true
         $newRev = (git rev-parse HEAD).Trim()
-        Write-Ok "代码已更新: $($localRev.Substring(0, 7)) -> $($newRev.Substring(0, 7))"
+        Write-Ok "Updated: $($localRev.Substring(0, 7)) -> $($newRev.Substring(0, 7))"
         git log -1 --oneline
+        $localRev = $newRev
     }
 } catch {
     Write-Err $_.Exception.Message
-    Write-Warn "若网络不通，可设置代理后重试，例如:"
+    Write-Warn "If the network failed, set a proxy and retry, e.g.:"
     Write-Host '  $env:HTTP_PROXY="http://127.0.0.1:7897"; $env:HTTPS_PROXY="http://127.0.0.1:7897"; .\update.ps1'
     exit 1
 }
 
 $rootLockChanged = $false
 $clientLockChanged = $false
-if ($localRev -ne $remoteRev) {
+if ($pulled) {
     $changedFiles = @(git diff --name-only "HEAD@{1}" HEAD 2>$null)
     $rootLockChanged = ($changedFiles -contains "package-lock.json") -or ($changedFiles -contains "package.json")
     $clientLockChanged = ($changedFiles -contains "client/package-lock.json") -or ($changedFiles -contains "client/package.json")
 }
 
-$shouldInstallRoot = $Install -or $rootLockChanged -or (Needs-NpmInstall "package-lock.json")
-$shouldInstallClient = $Install -or $clientLockChanged -or (Needs-NpmInstall "client/package-lock.json")
+$shouldInstallRoot = $Install -or $rootLockChanged -or (Test-NeedsNpmInstall "package-lock.json")
+$shouldInstallClient = $Install -or $clientLockChanged -or (Test-NeedsNpmInstall "client/package-lock.json")
 
 if (-not (Test-Command npm)) {
-    Write-Warn "未找到 npm，跳过依赖安装。"
+    Write-Warn "npm not found. Skipping dependency install."
     exit 0
 }
 
 if ($shouldInstallRoot) {
-    Write-Step "正在安装后端依赖 (npm install)..."
+    Write-Step "Installing root dependencies (npm install)..."
     npm install
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    Mark-NpmInstalled "package-lock.json"
+    Set-NpmInstalledStamp "package-lock.json"
 }
 
 if ($shouldInstallClient) {
-    Write-Step "正在安装前端依赖 (client/npm install)..."
+    Write-Step "Installing client dependencies (npm install)..."
     Push-Location client
     npm install
     $code = $LASTEXITCODE
     Pop-Location
     if ($code -ne 0) { exit $code }
-    Mark-NpmInstalled "client/package-lock.json"
+    Set-NpmInstalledStamp "client/package-lock.json"
 }
 
 if ($shouldInstallRoot -or $shouldInstallClient) {
-    Write-Ok "依赖已更新。"
+    Write-Ok "Dependencies updated."
 } else {
-    Write-Ok "依赖无需重装。"
+    Write-Ok "Dependencies unchanged."
 }
 
 Write-Host ""
-Write-Ok "完成。可运行 start.bat 或 .\start.ps1 启动应用。"
+Write-Ok "Done. Run start.bat or .\start.ps1 to launch."

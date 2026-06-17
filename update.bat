@@ -1,29 +1,22 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 cd /d "%~dp0"
 
 where git >nul 2>&1
 if errorlevel 1 (
   echo [ERROR] Git not found. Install from https://git-scm.com/download/win
-  goto hold
+  pause
+  exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0update.ps1" %*
-set EXITCODE=%ERRORLEVEL%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0update.ps1" %*
+set "ERR=%ERRORLEVEL%"
 
-if %EXITCODE% neq 0 goto failed
-goto end
+if not "%ERR%"=="0" (
+  echo.
+  echo [ERROR] Update failed. See messages above.
+)
 
-:failed
 echo.
-echo [ERROR] Update failed. See messages above.
-goto hold
-
-:end
-echo.
-goto hold
-
-:hold
 pause
-endlocal
-exit /b %EXITCODE%
+endlocal & exit /b %ERR%
