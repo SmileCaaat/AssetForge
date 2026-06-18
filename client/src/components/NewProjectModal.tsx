@@ -13,9 +13,17 @@ interface NewProjectModalProps {
   }) => Promise<void>;
 }
 
+const PLACEHOLDERS: Record<AssetDomain, string> = {
+  character: "例如: Stonemork（首字母将自动大写）",
+  terrain: "例如: ForestArena（将自动添加 _Terrain）",
+  scene: "例如: Dungeon01（完整场景，即将支持）",
+  prop: "例如: WoodenCrate",
+  ui: "例如: MainMenu",
+  vfx: "例如: FireBurst",
+};
+
 export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalProps) {
   const [projectName, setProjectName] = useState("");
-  const [chineseSuffix, setChineseSuffix] = useState("");
   const [customMode, setCustomMode] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [conceptFolderName, setConceptFolderName] = useState("");
@@ -23,10 +31,7 @@ export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalPr
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const derived = useMemo(
-    () => deriveProjectNames(projectName, chineseSuffix),
-    [projectName, chineseSuffix],
-  );
+  const derived = useMemo(() => deriveProjectNames(projectName, domain), [projectName, domain]);
 
   const finalNames = customMode
     ? { displayName, conceptFolderName, blenderProjectName }
@@ -35,17 +40,7 @@ export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalPr
   const handleProjectNameChange = (value: string) => {
     setProjectName(value);
     if (!customMode) {
-      const next = deriveProjectNames(value, chineseSuffix);
-      setDisplayName(next.displayName);
-      setConceptFolderName(next.conceptFolderName);
-      setBlenderProjectName(next.blenderProjectName);
-    }
-  };
-
-  const handleChineseSuffixChange = (value: string) => {
-    setChineseSuffix(value);
-    if (!customMode) {
-      const next = deriveProjectNames(projectName, value);
+      const next = deriveProjectNames(value, domain);
       setDisplayName(next.displayName);
       setConceptFolderName(next.conceptFolderName);
       setBlenderProjectName(next.blenderProjectName);
@@ -84,7 +79,7 @@ export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalPr
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>新建逻辑项目</h2>
         <p className="modal-desc">
-          将在 ConceptWorkspace 和 BlenderWorkspace 同时创建目录并建立关联。概念侧为扁平目录（仅项目文件夹），生产侧保留标准子结构。
+          将在 ConceptWorkspace 和 BlenderWorkspace 同时创建目录并建立关联。概念侧为扁平目录（仅项目文件夹），生产侧按资产大类使用对应子结构。
         </p>
         <div className="modal-domain-badge">资产大类：{ASSET_DOMAIN_LABELS[domain]}</div>
 
@@ -94,18 +89,9 @@ export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalPr
             <input
               value={projectName}
               onChange={(e) => handleProjectNameChange(e.target.value)}
-              placeholder="例如: Punchgob"
+              placeholder={PLACEHOLDERS[domain]}
               required
               autoFocus
-            />
-          </label>
-
-          <label>
-            中文后缀（可选，仅用于概念文件夹）
-            <input
-              value={chineseSuffix}
-              onChange={(e) => handleChineseSuffixChange(e.target.value)}
-              placeholder="例如: 庞哥布"
             />
           </label>
 
@@ -125,6 +111,11 @@ export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalPr
                 BlenderWorkspace/projects/{finalNames.blenderProjectName || "—"}
               </code>
             </div>
+            {domain === "terrain" && (
+              <p className="muted name-preview-hint">
+                地形大类使用轻量模板，不含 animations/mixamo。
+              </p>
+            )}
           </div>
 
           <button type="button" className="link-btn" onClick={toggleCustomMode}>

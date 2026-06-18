@@ -3,7 +3,7 @@ import path from "path";
 import { normalizeId } from "./config.js";
 import { listDirectories } from "./scanner.js";
 import type { MasterWorkspace, ProjectLink } from "./types.js";
-import { getBlenderRoot, getConceptRoot } from "./workspacePaths.js";
+import { getBlenderRoot, getConceptRoot, getTerrainRoot } from "./workspacePaths.js";
 
 function scoreMatch(a: string, b: string): number {
   const na = normalizeId(a);
@@ -132,9 +132,12 @@ export async function collectAccessibleProjectRoots(
   const roots = new Set<string>();
   const conceptRoot = getConceptRoot(workspace);
   const blenderRoot = getBlenderRoot(workspace);
+  const terrainRoot = getTerrainRoot(workspace);
   roots.add(path.resolve(conceptRoot));
   roots.add(path.resolve(blenderRoot));
+  roots.add(path.resolve(terrainRoot));
   roots.add(path.resolve(path.join(blenderRoot, "projects")));
+  roots.add(path.resolve(path.join(terrainRoot, "stages")));
 
   for (const project of workspace.projects) {
     roots.add(await resolveProjectPathAccessible(workspace, project, "concept"));

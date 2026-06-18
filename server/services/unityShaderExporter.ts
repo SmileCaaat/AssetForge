@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import type { MaterialLabState } from "../materialLabTypes.js";
+import { isTerrainMaterialLab } from "../materialLabTypes.js";
 import {
   UNITY_ASSETS_ROOT,
   bundleHlslRelative,
@@ -72,6 +73,13 @@ function rel(...parts: string[]): string {
   return parts.join("/");
 }
 
+async function writeAmtLightingCommon(generatedDir: string, bundleRel: string): Promise<string> {
+  const hlsl = await readTemplate("unity/AMTLightingCommon.hlsl");
+  const lightingRel = rel(bundleRel, "Shaders/Generated/AMTLightingCommon.hlsl");
+  await fs.writeFile(path.join(generatedDir, "AMTLightingCommon.hlsl"), hlsl, "utf-8");
+  return lightingRel;
+}
+
 async function copyProjectFile(
   projectRoot: string,
   relativePath: string,
@@ -117,7 +125,50 @@ function lightingParam(
   return typeof value === "number" ? value : DEFAULT_LIGHTING_PARAMS[key];
 }
 
-function buildMaterialJson(state: MaterialLabState, bundleName: string, copied: CopiedAssets): MaterialJsonV2 {
+function buildTerrainMaterialJson(
+  state: MaterialLabState,
+  bundleName: string,
+  copied: CopiedAssets,
+): MaterialJsonV2 {
+  const materialName = `M_${state.projectName}`;
+  const textureEntries: { key: string; path: string }[] = [];
+  if (copied.baseColor) textureEntries.push({ key: "_BaseMap", path: copied.baseColor });
+
+  const p = state.params;
+
+  return {
+    version: 2,
+    name: materialName,
+    shader: state.unity.shaderName,
+    bundleName,
+    displayName: state.displayName,
+    model: copied.model ?? "",
+    textures: textureEntries,
+    colors: [
+      { key: "_BaseColorTint", value: [...p.baseColorTint] },
+      { key: "_CelShadowColor", value: [...p.celShadowColor] },
+      { key: "_CelHighlightColor", value: [...p.celHighlightColor] },
+      { key: "_SlopeRockTint", value: [0.55, 0.5, 0.42, 1] },
+    ],
+    floats: [
+      { key: "_BaseSaturation", value: p.baseSaturation },
+      { key: "_BaseValue", value: p.baseValue },
+      { key: "_RampSteps", value: p.rampSteps },
+      { key: "_RampBlend", value: p.terrainRampBlend ?? 0.18 },
+      { key: "_AlbedoInfluence", value: p.terrainAlbedoInfluence ?? 0.72 },
+      { key: "_AlbedoPosterize", value: p.terrainAlbedoPosterize ?? 0.22 },
+      { key: "_NormalStrength", value: p.terrainNormalStrength ?? 1.15 },
+      { key: "_SlopeTintStrength", value: p.terrainSlopeTint ?? 0.12 },
+      { key: "_ShadowReceiveStrength", value: lightingParam(state, "shadowReceiveStrength") },
+      { key: "_AmbientStrength", value: lightingParam(state, "ambientStrength") },
+      { key: "_LightColorInfluence", value: lightingParam(state, "lightColorInfluence") },
+      { key: "_DistanceSmoothStrength", value: p.terrainDistanceSmooth ?? 0.35 },
+      { key: "_DistanceSmoothFar", value: 48 },
+    ],
+  };
+}
+
+function buildCharacterMaterialJson(state: MaterialLabState, bundleName: string, copied: CopiedAssets): MaterialJsonV2 {
   const materialName = `M_${state.projectName}`;
   const textureEntries: { key: string; path: string }[] = [];
 
@@ -166,6 +217,13 @@ function buildMaterialJson(state: MaterialLabState, bundleName: string, copied: 
       { key: "_BumpScale", value: 1 },
     ],
   };
+}
+
+function buildMaterialJson(state: MaterialLabState, bundleName: string, copied: CopiedAssets): MaterialJsonV2 {
+  if (isTerrainMaterialLab(state)) {
+    return buildTerrainMaterialJson(state, bundleName, copied);
+  }
+  return buildCharacterMaterialJson(state, bundleName, copied);
 }
 
 interface CopiedAssets {
@@ -221,13 +279,17 @@ async function exportProjectUnityBundle(
     }
   }
 
-  const textureSlots: [keyof CopiedAssets, string][] = [
-    ["baseColor", state.textures.baseColor.path],
-    ["normal", state.textures.normal.path],
-    ["metallicSmoothness", state.textures.metallicSmoothness.path],
-    ["ao", state.textures.ao.path],
-    ["emission", state.textures.emission.path],
-  ];
+  const isTerrain = isTerrainMaterialLab(state);
+
+  const textureSlots: [keyof CopiedAssets, string][] = isTerrain
+    ? [["baseColor", state.textures.baseColor.path]]
+    : [
+        ["baseColor", state.textures.baseColor.path],
+        ["normal", state.textures.normal.path],
+        ["metallicSmoothness", state.textures.metallicSmoothness.path],
+        ["ao", state.textures.ao.path],
+        ["emission", state.textures.emission.path],
+      ];
 
   for (const [key, srcRel] of textureSlots) {
     if (!srcRel) continue;
@@ -239,12 +301,19 @@ async function exportProjectUnityBundle(
     }
   }
 
-  const hlslRel = rel(bundleRel, "Shaders/Generated/ToonCore.generated.hlsl");
-  await fs.writeFile(path.join(blenderRoot, hlslRel.split("/").join(path.sep)), FALLBACK_HLSL, "utf-8");
-  files.push(hlslRel);
+  if (!isTerrain) {
+    const hlslRel = rel(bundleRel, "Shaders/Generated/ToonCore.generated.hlsl");
+    await fs.writeFile(path.join(blenderRoot, hlslRel.split("/").join(path.sep)), FALLBACK_HLSL, "utf-8");
+    files.push(hlslRel);
+  }
 
-  const shaderTemplate = await readTemplate("unity/ToonURP.template.shader");
-  const shaderRel = rel(bundleRel, "Shaders/ToonURP.shader");
+  const lightingHlslRel = await writeAmtLightingCommon(generatedDir, bundleRel);
+  files.push(lightingHlslRel);
+
+  const shaderTemplateName = isTerrain ? "unity/ToonTerrainURP.template.shader" : "unity/ToonURP.template.shader";
+  const shaderFileName = isTerrain ? "ToonTerrainURP.shader" : "ToonURP.shader";
+  const shaderTemplate = await readTemplate(shaderTemplateName);
+  const shaderRel = rel(bundleRel, "Shaders", shaderFileName);
   await fs.writeFile(
     path.join(blenderRoot, shaderRel.split("/").join(path.sep)),
     renderTemplate(shaderTemplate, { SHADER_NAME: state.unity.shaderName }),

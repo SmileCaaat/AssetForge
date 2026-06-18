@@ -1,6 +1,6 @@
 import path from "path";
 import type { AppState, MasterWorkspace, OpenFolderTarget } from "./types.js";
-import { BLENDER_WORKSPACE_FOLDER, CONCEPT_WORKSPACE_FOLDER } from "./types.js";
+import { BLENDER_WORKSPACE_FOLDER, CONCEPT_WORKSPACE_FOLDER, TERRAIN_WORKSPACE_FOLDER } from "./types.js";
 import { resolveProjectPath } from "./scanner.js";
 
 export function getConceptRoot(workspace: MasterWorkspace): string {
@@ -11,6 +11,14 @@ export function getConceptRoot(workspace: MasterWorkspace): string {
 export function getBlenderRoot(workspace: MasterWorkspace): string {
   if (workspace.blenderRoot) return workspace.blenderRoot;
   return path.join(workspace.rootPath, BLENDER_WORKSPACE_FOLDER);
+}
+
+export function getTerrainRoot(workspace: MasterWorkspace): string {
+  if (workspace.terrainRoot?.trim()) return path.resolve(workspace.terrainRoot.trim());
+  if (workspace.rootPath?.trim()) {
+    return path.join(path.resolve(workspace.rootPath), TERRAIN_WORKSPACE_FOLDER);
+  }
+  return path.join(path.dirname(getBlenderRoot(workspace)), TERRAIN_WORKSPACE_FOLDER);
 }
 
 export function getActiveWorkspace(state: AppState): MasterWorkspace {
@@ -31,10 +39,12 @@ export function collectWorkspaceRoots(workspace: MasterWorkspace): string[] {
   addRoot(roots, workspace.rootPath);
   const conceptRoot = getConceptRoot(workspace);
   const blenderRoot = getBlenderRoot(workspace);
+  const terrainRoot = getTerrainRoot(workspace);
   addRoot(roots, conceptRoot);
   addRoot(roots, blenderRoot);
-  // Allow any project folder under these trees (name may differ from config after fuzzy match)
+  addRoot(roots, terrainRoot);
   addRoot(roots, path.join(blenderRoot, "projects"));
+  addRoot(roots, path.join(terrainRoot, "stages"));
 
   for (const project of workspace.projects) {
     addRoot(roots, resolveProjectPath(workspace, project, "concept"));
@@ -69,5 +79,7 @@ export function resolveOpenFolderPath(
       return getConceptRoot(workspace);
     case "blender":
       return getBlenderRoot(workspace);
+    case "terrain":
+      return getTerrainRoot(workspace);
   }
 }

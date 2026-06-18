@@ -9,40 +9,22 @@ import {
   useState,
 } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Center, Environment, OrbitControls, useAnimations, useFBX } from "@react-three/drei";
+import { Center, Environment, useAnimations, useFBX } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { SkeletonUtils } from "three-stdlib";
 import * as THREE from "three";
 import { fileUrl } from "../api";
+import { applySceneView } from "../lib/sceneCamera";
+import { SceneCameraController } from "../lib/SceneCameraController";
+import { enableDoubleSideMaterials } from "../lib/meshPreviewUtils";
 import { clearThreeLoaderCache, disposeObject3D } from "../lib/threeCleanup";
-
-function collectSceneBounds(scene: THREE.Object3D): THREE.Box3 {
-  const box = new THREE.Box3();
-  scene.updateMatrixWorld(true);
-  scene.traverse((obj) => {
-    if ((obj as THREE.Mesh).isMesh) {
-      box.expandByObject(obj);
-    }
-  });
-  return box;
-}
 
 function applyFrontView(
   camera: THREE.Camera,
   controls: OrbitControlsImpl,
   scene: THREE.Object3D,
 ): void {
-  const box = collectSceneBounds(scene);
-  const center = box.isEmpty() ? new THREE.Vector3() : box.getCenter(new THREE.Vector3());
-  const size = box.isEmpty() ? new THREE.Vector3(1, 1, 1) : box.getSize(new THREE.Vector3());
-  const maxDim = Math.max(size.x, size.y, size.z, 0.001);
-  const distance = maxDim * 2.4;
-
-  camera.position.set(center.x, center.y, center.z + distance);
-  camera.up.set(0, 1, 0);
-  controls.target.copy(center);
-  camera.lookAt(center);
-  controls.update();
+  applySceneView(camera, controls, scene, "auto");
 }
 
 function normalizeToken(value: string): string {
@@ -106,6 +88,7 @@ function AnimatedFbx({
   }, [object.animations, onClipsLoaded, sourceUrl]);
 
   useEffect(() => {
+    enableDoubleSideMaterials(object);
     object.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
@@ -173,32 +156,6 @@ function ModelScene({
     onRegister(resetToFrontView);
   }, [onRegister, resetToFrontView]);
 
-  useEffect(() => {
-    let cancelled = false;
-    let attempts = 0;
-    let frameId = 0;
-
-    const tryReset = () => {
-      if (cancelled) return;
-      if (controlsRef.current) {
-        resetToFrontView();
-        return;
-      }
-      if (attempts >= 12) return;
-      attempts += 1;
-      frameId = requestAnimationFrame(tryReset);
-    };
-
-    frameId = requestAnimationFrame(() => {
-      frameId = requestAnimationFrame(tryReset);
-    });
-
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(frameId);
-    };
-  }, [fbx, url, resetToFrontView, controlsRef]);
-
   return (
     <>
       <AnimatedFbx
@@ -207,6 +164,7 @@ function ModelScene({
         selectedClipName={selectedClipName}
         onClipsLoaded={onClipsLoaded}
       />
+      <SceneCameraController mode="auto" resetKey={url} controlsRef={controlsRef} />
       <Environment preset="city" />
     </>
   );
@@ -290,7 +248,7 @@ export const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(funct
       <div className="model-viewer">
         <Canvas
           key={url}
-          camera={{ position: [2, 2, 2], fov: 45 }}
+          camera={{ position: [0, 12, 24], fov: 45, near: 0.1, far: 5000 }}
           shadows
           gl={{ antialias: true, powerPreference: "default" }}
           frameloop="always"
@@ -308,7 +266,6 @@ export const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(funct
               onClipsLoaded={handleClipsLoaded}
             />
           </Suspense>
-          <OrbitControls ref={controlsRef} makeDefault />
         </Canvas>
       </div>
     </div>

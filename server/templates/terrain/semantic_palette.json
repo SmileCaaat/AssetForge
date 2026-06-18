@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "colors": [
+    { "id": "grass", "label": "普通草地", "hex": "#3FA34D", "walkable": true, "decoratable": true, "description": "普通可行走草地区" },
+    { "id": "dirt", "label": "泥地", "hex": "#7A5A36", "walkable": true, "decoratable": true, "description": "土路、裸露泥地、草地过渡" },
+    { "id": "stone_road", "label": "石质通道", "hex": "#6E6A62", "walkable": true, "decoratable": false, "description": "台地之间的连接通道、主走线，略低于台地" },
+    { "id": "stone_platform", "label": "石质台地", "hex": "#D5CFC0", "walkable": true, "decoratable": false, "description": "独立块状石质台地、遗迹庭院、战斗站位区，高于通道" },
+    { "id": "boundary_grass", "label": "边界深草", "hex": "#1F5E36", "walkable": false, "decoratable": true, "description": "用于自然封边的深草区" },
+    { "id": "water_or_pit", "label": "水体/深坑", "hex": "#2D4F73", "walkable": false, "decoratable": false, "description": "不可行走的水体、裂谷、深坑" },
+    { "id": "clear_zone", "label": "战斗/交互净区", "hex": "#FFFFFF", "walkable": true, "decoratable": false, "description": "保持干净，不自动生成草和碎石" },
+    { "id": "ruin_anchor", "label": "遗迹锚点", "hex": "#FF0000", "walkable": false, "decoratable": false, "anchorType": "ruin", "description": "柱子、断墙、拱门、石碑等遗迹道具摆放点" },
+    { "id": "nature_anchor", "label": "自然锚点", "hex": "#00FF00", "walkable": false, "decoratable": false, "anchorType": "nature", "description": "树、树桩、大蘑菇、巨石等自然道具摆放点" },
+    { "id": "interact_anchor", "label": "交互锚点", "hex": "#FFFF00", "walkable": false, "decoratable": false, "anchorType": "interact", "description": "箱子、采集点、机关、可交互物摆放点" },
+    { "id": "npc_anchor", "label": "NPC锚点", "hex": "#FF00FF", "walkable": false, "decoratable": false, "anchorType": "npc", "description": "NPC、功能点、任务点摆放点" },
+    { "id": "special_anchor", "label": "特殊锚点", "hex": "#00FFFF", "walkable": false, "decoratable": false, "anchorType": "special", "description": "水晶、传送门、祭坛、特殊地标摆放点" }
+  ]
+}

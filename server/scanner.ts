@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import type { FileNode, MasterWorkspace, ProjectLink } from "./types.js";
 import { normalizeId } from "./config.js";
+import { inferAssetDomainFromFolderName } from "./assetDomains.js";
 import { getBlenderRoot, getConceptRoot } from "./workspacePaths.js";
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"]);
@@ -77,10 +78,11 @@ export async function suggestProjectLinks(workspace: MasterWorkspace): Promise<P
       }
     }
     if (best && best.score >= 80 && !linkedBlender.has(`projects/${best.name}`)) {
+      const displayName = best.name;
       suggestions.push({
         id: normalizeId(conceptName) || normalizeId(best.name),
-        displayName: best.name,
-        domain: "character",
+        displayName,
+        domain: inferAssetDomainFromFolderName(displayName),
         conceptPath: conceptName,
         blenderPath: `projects/${best.name}`,
         stage: "production",

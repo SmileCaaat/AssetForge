@@ -14,9 +14,8 @@
 
 ## 零、实现状态（同步仓库，请以此为准）
 
-> **最后更新：2026-06-17** · 仓库：`main` 分支。  
-> Unity 实机验收通过（Mushpig / Punchgob / stonemork）；**Slang 阶段 B 正式搁置**，维持 fallback HLSL 即可。  
-> 同期主线：**资产大类**（角色/场景）、**工作区配置并发修复**、**MetallicSmoothness 贴图标记**、**DEBUG 启动模式** 已合入。
+> **最后更新：2026-06-16** · 仓库：`main` 分支。  
+> Unity 实机验收通过（Mushpig / Punchgob / stonemork / Overview_Terrain 投影）；**Slang 阶段 B 正式搁置**，维持 fallback HLSL 即可。
 
 ### 总览
 
@@ -56,13 +55,18 @@ BlenderWorkspace/UnityAssets/
 - 单个导入成功后也会 `SaveAssets` / `Refresh`；`_BumpMap` 等贴图自动设置导入类型
 - **ToonURP**（`AssetManagerTools/ToonURP`）：
   - **Outline Pass**：Cull Front 背面壳 + 裁剪空间外扩 + 远景宽度 LOD（`FarWidthScale` / `FadeStart` / `FadeEnd` / `MinWidth`）
-  - **ForwardLit**：`GetMainLight(shadowCoord)`、阴影/距离衰减调制 Ramp、`SampleSH` 环境光、主光色 / Rim 光色影响
-  - **ShadowCaster**：角色可向地面投影
+  - **ForwardLit**：`GetMainLight()` 取主光方向/颜色；`AMT_SampleMainLightShadowAttenuation()` 片元采样 URP 阴影贴图（Cascade / Screen Space 兼容）；Ramp + `SampleSH` 环境光
+  - **ShadowCaster**：URP 内置 `ShadowCasterPass.hlsl`，角色可向地面投影
   - Normal Map + fallback `ToonCore.generated.hlsl`（**非 Slang 产物**）
+- **ToonTerrainURP**（`AssetManagerTools/ToonTerrainURP`）：
+  - 软 Toon Ramp + Albedo 保留 + 坡度染色；**接收角色投射阴影**（片元 `MainLightRealtimeShadow`，向 `CelShadowColor` 混合）
+  - 共享 `Shaders/Generated/AMTLightingCommon.hlsl`（导出时自动复制）
+  - **ShadowCaster** Pass 供地形自身参与阴影管线
 
 **网页预览**
 
 - BaseColor + Toon 色阶 + Rim + Outline（远景 LOD 与 Unity 公式同步；仍为 Three.js 简化光照）
+- **地形预览**（`terrainToonShader.ts`）：ForwardLit 逻辑与 Unity ToonTerrainURP 同步；无实时阴影贴图（角色投影以 Unity 为准）
 - Matcap 程序化近似（MatcapStrength > 0）
 - **与 Unity 存在可见差异是正常的**；Unity 为最终验收标准
 
@@ -98,6 +102,68 @@ client/src/material-lab/
 - Normal Map **网页预览**（切线空间，需单独验证 FBX）
 - Matcap **贴图槽**
 - WebGPU / WGSL 实验预览
+
+### 计划 — 阶段 E：地形 Material Lab（轨道 A · `_Terrain` 项目）· **已实现 v1**
+
+> **2026-06 决策**：地形模型项目复用 Material Lab 框架与相同 Unity 包规则。参考 `Toon_Shader_Overview_Terrain.md`。
+
+**与 Stage Lab（轨道 B）分工**
+
+| 维度 | 轨道 A — 地形模型 + Material Lab | 轨道 B — Stage Lab |
+|------|----------------------------------|-------------------|
+| 目录 | `BlenderWorkspace/projects/<Name>_Terrain` | `TerrainWorkspace/stages/<StageName>/` |
+| 核心产出 | 置换后 `SM_*_Terrain.fbx` + BaseColor Toon | SemanticControl + BaseColor 语义约束 |
+| Height | Blender Displace 源图（`textures/source/`） | TextureWiz → Blender，不进 stage.json |
+| Unity 交付 | **BaseColor 一张** + 置换网格（或 Heightmap RAW） | 不经 Stage Lab UI 导出 Unity 材质 |
+
+**现状（2026-06 已实现）**
+
+- 地形 Blender 项目显示「材质实验室」（与 Stage Lab 并存）
+- `shaderType: "toon_terrain_urp"` · `AssetManagerTools/ToonTerrainURP`
+- 贴图槽 UI 仅 BaseColor；参数：Saturation / Posterize 5 阶 / Cel 双色
+- 导出 `UnityAssets/<Name>/` 结构同角色；Shader 为 `ToonTerrainURP.shader` + `Generated/AMTLightingCommon.hlsl`
+- 网页预览：Terrain FBX + 软 Toon 光照（`terrainToonShader.ts`，与 Unity 接近；无实时阴影贴图）
+- **Unity 实机**：角色 ShadowCaster → 地形接收投影已验收（2026-06-16）
+
+**曾缺（已补）**
+
+**目标（复用角色 Unity 包结构，不换目录约定）**
+
+```text
+BlenderWorkspace/UnityAssets/
+├── Editor/AssetManagerMaterialImporter.cs   ← 共用
+└── Overview_Terrain/                        ← 与 Mushpig 同级
+    ├── Models/SM_Overview_Terrain.fbx
+    ├── Textures/T_Overview_Terrain_BaseColor.png   ← Unity 仅此项
+    ├── Shaders/ToonTerrainURP.shader
+    ├── Materials/M_Overview_Terrain.material.json
+    └── bundle.manifest.json
+```
+
+**Blender 节点 → Material Lab 参数（`shaderType: "toon_terrain_urp"`）**
+
+| Blender（Overview 文档 §4） | material_lab.json 字段 | 默认 |
+|------------------------------|------------------------|------|
+| HueSat `Saturation = 1.78` | `baseSaturation` | `1.78` |
+| V_Posterize 5 阶 | `rampSteps` + `posterizeLevels[5]` | 见文档 §4.2 分界 |
+| Cel_Ramp 暗色 `(0.08,0.10,0.07)` | `celShadowColor` | 暖暗阴影 |
+| Cel_Ramp 亮色 `(1.00,0.97,0.90)` @0.90 | `celHighlightColor` | 暖亮高光 |
+| 无 Outline / Normal / PBR 槽 | `outlineEnabled: false`；贴图槽仅 `baseColor` | — |
+| Height / AO / Edge 等 | **不进 Unity 导出**；Height 仅 Blender 置换 | — |
+
+**实现步骤（建议顺序）**
+
+1. **放开入口**：地形 Blender 项目显示「材质实验室」；`Material Lab` 与 `Stage Lab` 按钮并存
+2. **地形 profile**：`buildDefaultMaterialLabState` 按 `project.domain === "terrain"` 分支 — 预览模型 `exports/SM_*_Terrain.fbx`、顶视/轨道相机、仅 BaseColor 槽
+3. **UI 分支**：地形隐藏 Outline / Normal / MetSmth 合并；参数面板展示 Posterize + Cel 双色
+4. **导出分支**：`unityShaderExporter` 复制 `ToonTerrainURP.shader` 模板；`material.json` 仅 `_BaseMap` + 地形 floats/colors
+5. **网页预览**：平面或 Terrain FBX + HSV Posterize + NdotL Cel（Emission 近似，与 Unity 有差异可接受）
+
+**不做的**
+
+- 不把 Stage Lab 的 SemanticControl 并入 Material Lab（两条工作流保持独立）
+- 不在 Material Lab 内集成 Blender Displace / Height 编辑（仍在 Blender）
+- 不恢复 Stage Lab 的 Mask 派生
 
 ### 给 AI / 下一台电脑的接续说明
 

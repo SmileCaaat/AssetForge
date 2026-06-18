@@ -14,6 +14,7 @@ import {
   updateActiveWorkspace,
 } from "./config.js";
 import { createLinkedProject } from "./projectCreator.js";
+import { normalizeProjectNamesForCreate } from "./projectNaming.js";
 import { autoLinkWorkspaceProjects } from "./projectSync.js";
 import {
   copyPath,
@@ -71,6 +72,7 @@ import { resolvePickerTokenPath } from "./pickerToken.js";
 import { importFilesToDirectory } from "./importFiles.js";
 import multer from "multer";
 import { materialLabRouter } from "./routes/materialLab.js";
+import { terrainStageRouter } from "./routes/terrainStage.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3456;
@@ -315,12 +317,24 @@ app.post("/api/projects", async (req, res) => {
       return;
     }
 
+    const names = normalizeProjectNamesForCreate({
+      displayName: body.displayName,
+      conceptFolderName,
+      blenderProjectName: body.blenderProjectName,
+      domain: body.domain,
+    });
+
+    if (!names.displayName || !names.conceptFolderName || !names.blenderProjectName) {
+      res.status(400).json({ error: "Invalid project name" });
+      return;
+    }
+
     const state = await loadConfig();
     const active = getActiveWorkspace(state);
     const link = createProjectLink(
-      body.displayName,
-      conceptFolderName,
-      body.blenderProjectName,
+      names.displayName,
+      names.conceptFolderName,
+      names.blenderProjectName,
       body.domain,
     );
 
@@ -329,7 +343,13 @@ app.post("/api/projects", async (req, res) => {
       return;
     }
 
-    await createLinkedProject(active, body.displayName, conceptFolderName, body.blenderProjectName);
+    await createLinkedProject(
+      active,
+      names.displayName,
+      names.conceptFolderName,
+      names.blenderProjectName,
+      body.domain,
+    );
     const next = updateActiveWorkspace(state, (workspace) => ({
       ...workspace,
       projects: [...workspace.projects, link],
@@ -859,6 +879,7 @@ app.post("/api/fs/import-files", upload.array("files"), async (req, res) => {
 });
 
 app.use("/api/projects", materialLabRouter);
+app.use("/api/terrain", terrainStageRouter);
 
 app.get("/api/files", async (req, res) => {
   try {

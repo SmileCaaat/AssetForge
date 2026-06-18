@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "stageType": "ruin_road",
+  "aspect": "16:9",
+  "worldSize": { "width": 32, "height": 18, "unit": "unity" },
+  "resolution": { "width": 2048, "height": 1152 },
+  "promptProfile": {
+    "style": "lowpoly_toon_ruins",
+    "camera": "top_down_orthographic",
+    "outputType": "basecolor_only"
+  }
+}

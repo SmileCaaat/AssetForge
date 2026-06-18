@@ -84,7 +84,7 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 
 ### 项目与文件
 
-- **资产大类**：侧边栏按 **角色 / 场景 / 道具 / UI / VFX** 分组；每个大类下仍保留 **概念 / 生产** 双视图（当前 **角色、场景** 已开放；道具 / UI / VFX 为灰色预留）。项目 `domain` 字段写入 `workspace.json`，旧项目默认 **角色**，**不改磁盘路径**
+- **资产大类**：侧边栏按 **角色 / 地形 / 场景 / 道具 / UI / VFX** 分组；每个大类下仍保留 **概念 / 生产** 双视图（当前 **角色、地形** 已开放；**场景** 与道具 / UI / VFX 为灰色预留）。项目 `domain` 字段写入 `workspace.json`；旧 `domain: scene` 的地形项目会自动迁移为 `terrain`
 - **逻辑项目**：概念侧与生产侧目录关联，支持概念 / 生产视图切换；切换项目时带加载遮罩，避免显示上一项目残留目录
 - **文件树 + 画廊**：浏览、选中、预览可识别资产（图片、FBX、Blend）
 - **文件操作**：新建文件夹、重命名、复制、剪切、粘贴、删除
@@ -120,6 +120,19 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 - **FBX**：Three.js 预览，默认正视图；自动播放内嵌动画；**多动画 FBX 可在工具栏切换 clip 播放**
 - **Blend**：提示在 `renders/` 查看渲染图
 
+### 地形板块（`domain: terrain`）
+
+**轨道 A — 地形模型（已上线）**
+
+- 新建项目自动 `首字母大写` + `_Terrain` 后缀；Blender 轻量目录（无 `animations/mixamo`）
+- 生产侧可走 **Material Lab** 导出 Unity 包（与角色相同 Toon 管线）
+
+**轨道 B — Stage Lab（规划中）**
+
+- 2.5D 固定 16:9 舞台：Semantic Control Map → 派生 Walkable / Decoration / PropAnchor Mask
+- 开发说明：[devplan/AssetManagerTools_Terrain_StageLab_AICODING.md](./devplan/AssetManagerTools_Terrain_StageLab_AICODING.md)
+- 数据目录：`TerrainWorkspace/stages/<StageName>/`（与 `BlenderWorkspace/projects/` 并列）
+
 ### 材质实验室（Material Lab，生产侧）
 
 在生产视图工具栏点击 **「材质实验室」** 打开全屏 Modal：
@@ -131,7 +144,8 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 - **检查 Unity 贴图规范**
 - **导出 Unity 包** → `BlenderWorkspace/UnityAssets/<项目名>/`（Models、Textures、Shaders、Materials 一键整理）
 - Unity：**Asset Manager** 菜单支持单个 / 批量导入 `.material.json` 生成 `.mat`（导入时自动配置 Normal / 线性贴图类型）
-- **ToonURP** 支持 URP 主光方向、颜色、阴影衰减、`SampleSH` 环境光、**ShadowCaster** 投影；Outline 带远景宽度 LOD
+- **ToonURP** 支持 URP 主光方向、颜色、片元阴影采样、`SampleSH` 环境光、**ShadowCaster** 投影；Outline 带远景宽度 LOD
+- **ToonTerrainURP**（地形 Material Lab）：软 Toon 光照 + **接收角色投射阴影**（`AMTLightingCommon.hlsl` + `_ShadowReceiveStrength`）
 - **Slang 编译（阶段 B）已搁置** — 使用内置 fallback HLSL
 
 ---
@@ -148,8 +162,13 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 │       └── …
 └── BlenderWorkspace/            # Blender 生产
     ├── UnityAssets/             # Material Lab 导出的 Unity 就绪角色包
-    │   ├── Editor/              # Asset Manager 导入脚本（拷入 Unity 一次）
-    │   └── <项目名>/            # Models / Textures / Shaders / Materials
+    │   ├── Editor/
+    │   └── <项目名>/
+    ├── TerrainWorkspace/        # Stage Lab 舞台项目（规划）
+    │   └── stages/
+    │       └── <StageName>/
+    │           ├── .asset-manager/stage.json
+    │           └── textures/
     ├── projects/
     │   └── <项目名>/
     │       ├── textures/

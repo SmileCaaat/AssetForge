@@ -121,12 +121,15 @@ Shader "{{SHADER_NAME}}"
             #pragma vertex vert
             #pragma fragment frag
 
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma shader_feature_local_fragment _RECEIVE_SHADOWS_OFF
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Generated/AMTLightingCommon.hlsl"
             #include "Generated/ToonCore.generated.hlsl"
 
             TEXTURE2D(_BaseMap);
@@ -162,7 +165,6 @@ Shader "{{SHADER_NAME}}"
                 float3 tangentWS : TEXCOORD2;
                 float3 bitangentWS : TEXCOORD3;
                 float2 uv : TEXCOORD4;
-                float4 shadowCoord : TEXCOORD5;
             };
 
             float3 SampleNormalWS(Varyings input)
@@ -186,7 +188,6 @@ Shader "{{SHADER_NAME}}"
                 output.tangentWS = normInputs.tangentWS;
                 output.bitangentWS = normInputs.bitangentWS;
                 output.uv = input.uv;
-                output.shadowCoord = TransformWorldToShadowCoord(posInputs.positionWS);
                 return output;
             }
 
@@ -198,12 +199,14 @@ Shader "{{SHADER_NAME}}"
                 float3 normalWS = SampleNormalWS(input);
                 float3 viewDirWS = normalize(GetWorldSpaceViewDir(input.positionWS));
 
-                Light mainLight = GetMainLight(input.shadowCoord);
+                Light mainLight = GetMainLight();
                 float3 lightDirWS = normalize(mainLight.direction);
 
+                half castShadowAtten = AMT_SampleMainLightShadowAttenuation(
+                    input.positionHCS, input.positionWS);
+
                 float ndotl = saturate(dot(normalWS, lightDirWS));
-                float shadowLit = mainLight.shadowAttenuation * mainLight.distanceAttenuation;
-                float litTerm = ndotl * lerp(1.0, shadowLit, _ShadowReceiveStrength);
+                float litTerm = ndotl * lerp(1.0, castShadowAtten, _ShadowReceiveStrength);
 
                 ToonParams p;
                 p.baseColor = baseColor;
@@ -249,56 +252,7 @@ Shader "{{SHADER_NAME}}"
 
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
-
-            float3 _LightDirection;
-            float3 _LightPosition;
-
-            struct ShadowAttributes
-            {
-                float4 positionOS : POSITION;
-                float3 normalOS : NORMAL;
-            };
-
-            struct ShadowVaryings
-            {
-                float4 positionCS : SV_POSITION;
-            };
-
-            float4 GetShadowPositionHClip(ShadowAttributes input)
-            {
-                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
-                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
-
-            #if _CASTING_PUNCTUAL_LIGHT_SHADOW
-                float3 lightDirectionWS = normalize(_LightPosition - positionWS);
-            #else
-                float3 lightDirectionWS = _LightDirection;
-            #endif
-
-                float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
-
-            #if UNITY_REVERSED_Z
-                positionCS.z = min(positionCS.z, UNITY_NEAR_CLIP_VALUE);
-            #else
-                positionCS.z = max(positionCS.z, UNITY_NEAR_CLIP_VALUE);
-            #endif
-
-                return positionCS;
-            }
-
-            ShadowVaryings ShadowPassVertex(ShadowAttributes input)
-            {
-                ShadowVaryings output;
-                output.positionCS = GetShadowPositionHClip(input);
-                return output;
-            }
-
-            half4 ShadowPassFragment(ShadowVaryings input) : SV_TARGET
-            {
-                return 0;
-            }
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
             ENDHLSL
         }
     }

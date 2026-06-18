@@ -5,10 +5,12 @@ import { loadTextureTags, syncTextureTagsFromFiles } from "../blenderTextureTags
 import type { TextureMapType } from "../blenderTextureTags.js";
 import {
   DEFAULT_MATERIAL_LAB_PARAMS,
+  DEFAULT_TERRAIN_MATERIAL_LAB_PARAMS,
   type MaterialLabParams,
   type MaterialLabState,
   type MaterialLabTextureSlot,
 } from "../materialLabTypes.js";
+import { normalizeAssetDomain } from "../assetDomains.js";
 import { bundleHlslRelative } from "./unityExportPaths.js";
 
 const META_DIR = ".asset-manager";
@@ -65,12 +67,21 @@ async function findMetallicSmoothnessByName(projectRoot: string, displayName: st
   }
 }
 
-async function findExportModel(projectRoot: string, displayName: string): Promise<string> {
+async function findExportModel(
+  projectRoot: string,
+  displayName: string,
+  isTerrain: boolean,
+): Promise<string> {
   const prefix = sanitizePrefix(displayName);
-  const candidates = [
-    `exports/SM_${prefix}.fbx`,
-    `exports/SM_${prefix}_Low.fbx`,
-  ];
+  const stem = isTerrain ? prefix.replace(/_Terrain$/i, "") : prefix;
+  const candidates = isTerrain
+    ? [
+        `exports/SM_${stem}_Terrain.fbx`,
+        `exports/SM_${prefix}.fbx`,
+        `exports/${stem}.fbx`,
+        `exports/${stem.toLowerCase()}.fbx`,
+      ]
+    : [`exports/SM_${prefix}.fbx`, `exports/SM_${prefix}_Low.fbx`];
 
   for (const rel of candidates) {
     if (await fileExists(projectRoot, rel)) return rel;
@@ -90,30 +101,34 @@ export async function buildDefaultMaterialLabState(
   projectRoot: string,
   project: ProjectLink,
 ): Promise<MaterialLabState> {
+  const isTerrain = normalizeAssetDomain(project.domain) === "terrain";
+
   let tagsFile = await loadTextureTags(projectRoot);
   tagsFile = await syncTextureTagsFromFiles(projectRoot, project.displayName, tagsFile);
 
   const tags = tagsFile.tags;
   const baseColor = (await findByTagType(projectRoot, tags, "BaseColor")) || "";
-  const normal = (await findByTagType(projectRoot, tags, "Normal")) || "";
-  const ao = (await findByTagType(projectRoot, tags, "AO")) || "";
-  const emission = (await findByTagType(projectRoot, tags, "Emission")) || "";
-  const metallicSmoothness =
-    (await findByTagType(projectRoot, tags, "MetallicSmoothness")) ||
-    (await findMetallicSmoothnessByName(projectRoot, project.displayName)) ||
-    "";
+  const normal = isTerrain ? "" : (await findByTagType(projectRoot, tags, "Normal")) || "";
+  const ao = isTerrain ? "" : (await findByTagType(projectRoot, tags, "AO")) || "";
+  const emission = isTerrain ? "" : (await findByTagType(projectRoot, tags, "Emission")) || "";
+  const metallicSmoothness = isTerrain
+    ? ""
+    : (await findByTagType(projectRoot, tags, "MetallicSmoothness")) ||
+      (await findMetallicSmoothnessByName(projectRoot, project.displayName)) ||
+      "";
 
-  const modelPath = await findExportModel(projectRoot, project.displayName);
+  const modelPath = await findExportModel(projectRoot, project.displayName, isTerrain);
   const projectName = sanitizePrefix(project.displayName) || project.id;
+  const defaultParams = isTerrain ? DEFAULT_TERRAIN_MATERIAL_LAB_PARAMS : DEFAULT_MATERIAL_LAB_PARAMS;
 
   return {
     version: 1,
     projectName,
     displayName: project.displayName,
-    shaderType: "toon_urp",
+    shaderType: isTerrain ? "toon_terrain_urp" : "toon_urp",
     preview: {
       modelPath,
-      cameraMode: "front",
+      cameraMode: isTerrain ? "orbit" : "front",
       background: "checker",
     },
     textures: {
@@ -127,15 +142,15 @@ export async function buildDefaultMaterialLabState(
       ao: { path: ao, unityProperty: "_OcclusionMap", colorSpace: "Non-Color" },
       emission: { path: emission, unityProperty: "_EmissionMap", colorSpace: "sRGB" },
     },
-    params: { ...DEFAULT_MATERIAL_LAB_PARAMS },
+    params: { ...defaultParams },
     slang: {
-      enabled: true,
+      enabled: !isTerrain,
       source: "server/templates/slang/ToonCore.slang",
       lastCompiledAt: "",
       generatedHlsl: bundleHlslRelative(projectName),
     },
     unity: {
-      shaderName: "AssetManagerTools/ToonURP",
+      shaderName: isTerrain ? "AssetManagerTools/ToonTerrainURP" : "AssetManagerTools/ToonURP",
       renderPipeline: "URP",
       surfaceType: "Opaque",
       exportedAt: "",
@@ -163,11 +178,36 @@ function normalizeOutlineLodParams(params: MaterialLabParams): MaterialLabParams
   return next;
 }
 
+function mergeMaterialLabParams(
+  defaults: MaterialLabParams,
+  parsed: Partial<MaterialLabParams> | undefined,
+): MaterialLabParams {
+  const p = parsed ?? {};
+  return normalizeOutlineLodParams({
+    ...defaults,
+    ...p,
+    baseColorTint: p.baseColorTint ?? defaults.baseColorTint,
+    rimColor: p.rimColor ?? defaults.rimColor,
+    outlineColor: p.outlineColor ?? defaults.outlineColor,
+    celShadowColor: p.celShadowColor ?? defaults.celShadowColor,
+    celHighlightColor: p.celHighlightColor ?? defaults.celHighlightColor,
+    celHighlightPos: p.celHighlightPos ?? defaults.celHighlightPos,
+    posterizeLevels: p.posterizeLevels ?? defaults.posterizeLevels,
+    terrainRampBlend: p.terrainRampBlend ?? defaults.terrainRampBlend,
+    terrainAlbedoInfluence: p.terrainAlbedoInfluence ?? defaults.terrainAlbedoInfluence,
+    terrainNormalStrength: p.terrainNormalStrength ?? defaults.terrainNormalStrength,
+    terrainAlbedoPosterize: p.terrainAlbedoPosterize ?? defaults.terrainAlbedoPosterize,
+    terrainDistanceSmooth: p.terrainDistanceSmooth ?? defaults.terrainDistanceSmooth,
+    terrainSlopeTint: p.terrainSlopeTint ?? defaults.terrainSlopeTint,
+  });
+}
+
 export async function loadMaterialLabState(
   projectRoot: string,
   project: ProjectLink,
 ): Promise<{ state: MaterialLabState; created: boolean; warnings: string[] }> {
   const warnings: string[] = [];
+  const isTerrain = normalizeAssetDomain(project.domain) === "terrain";
   try {
     const raw = await fs.readFile(stateFilePath(projectRoot), "utf-8");
     const parsed = JSON.parse(raw) as MaterialLabState;
@@ -175,15 +215,26 @@ export async function loadMaterialLabState(
       warnings.push("material_lab.json 版本未知，已尝试合并默认字段。");
     }
     const defaults = await buildDefaultMaterialLabState(projectRoot, project);
+    const shaderType =
+      parsed.shaderType === "toon_terrain_urp" || parsed.shaderType === "toon_urp"
+        ? parsed.shaderType
+        : defaults.shaderType;
+    if (isTerrain && shaderType !== "toon_terrain_urp") {
+      warnings.push("地形项目已切换为 toon_terrain_urp profile。");
+    }
     const state: MaterialLabState = {
       ...defaults,
       ...parsed,
+      shaderType: isTerrain ? "toon_terrain_urp" : shaderType,
       textures: { ...defaults.textures, ...parsed.textures },
-      params: normalizeOutlineLodParams({ ...defaults.params, ...parsed.params }),
+      params: mergeMaterialLabParams(defaults.params, parsed.params),
       preview: { ...defaults.preview, ...parsed.preview },
       slang: { ...defaults.slang, ...parsed.slang },
       unity: { ...defaults.unity, ...parsed.unity },
     };
+    if (isTerrain) {
+      state.unity.shaderName = "AssetManagerTools/ToonTerrainURP";
+    }
     return { state, created: false, warnings };
   } catch {
     const state = await buildDefaultMaterialLabState(projectRoot, project);

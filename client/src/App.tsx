@@ -33,8 +33,8 @@ import { DEFAULT_SHORTCUTS, type ShortcutConfig } from "./config/shortcuts";
 import {
   type AssetDomain,
   ASSET_DOMAIN_LABELS,
-  ASSET_DOMAIN_ORDER,
   DEFAULT_ASSET_DOMAIN,
+  migrateLegacySessionDomain,
   normalizeAssetDomain,
 } from "./config/assetDomains";
 import { debugLog, isDebugMode } from "./lib/debugLog";
@@ -61,6 +61,7 @@ import { useAutoSave } from "./hooks/useAutoSave";
 import { copyPathToClipboard, resolveCopyPathTarget, resolveCurrentDirectoryPath } from "./lib/copyPath";
 import { clearThreeLoaderCache } from "./lib/threeCleanup";
 import { MaterialLabModal } from "./material-lab/MaterialLabModal";
+import { StageLabModal } from "./terrain/StageLabModal";
 
 interface AppProps {
   workspace: WorkspaceResponse & { active: NonNullable<WorkspaceResponse["active"]> };
@@ -70,9 +71,8 @@ interface AppProps {
 function readStoredDomain(workspaceId: string): AssetDomain {
   try {
     const saved = sessionStorage.getItem(`amt:${workspaceId}:domain`);
-    if (saved && ASSET_DOMAIN_ORDER.includes(saved as AssetDomain)) {
-      return saved as AssetDomain;
-    }
+    const migrated = migrateLegacySessionDomain(saved);
+    if (migrated) return migrated;
   } catch {
     /* ignore */
   }
@@ -128,6 +128,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [galleryCollapsed, setGalleryCollapsed] = useState(false);
   const [showMaterialLab, setShowMaterialLab] = useState(false);
+  const [showStageLab, setShowStageLab] = useState(false);
   const [conceptTags, setConceptTags] = useState<Record<string, ConceptAssetRole>>({});
   const [textureTags, setTextureTags] = useState<Record<string, TextureMapType>>({});
   const [splitFile, setSplitFile] = useState<FileNode | null>(null);
@@ -144,7 +145,9 @@ export default function App({ workspace, onRefresh }: AppProps) {
   activeDomainRef.current = activeDomain;
   const notifyRef = useRef<(text: string, type?: "info" | "error") => void>(() => {});
   const showMaterialLabRef = useRef(showMaterialLab);
+  const showStageLabRef = useRef(showStageLab);
   showMaterialLabRef.current = showMaterialLab;
+  showStageLabRef.current = showStageLab;
 
   const projectBelongsToDomain = useCallback(
     (projectId: string, domain: AssetDomain) =>
@@ -175,6 +178,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const domainCounts = useMemo(() => {
     const counts: Record<AssetDomain, number> = {
       character: 0,
+      terrain: 0,
       scene: 0,
       prop: 0,
       ui: 0,
@@ -396,7 +400,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
       try {
         const result = await saveAllData();
         setLastSavedAt(new Date(result.savedAt));
-        if (!showMaterialLabRef.current) {
+        if (!showMaterialLabRef.current && !showStageLabRef.current) {
           if (side === "concept" && selectedProjectId) {
             const tagRes = await fetchConceptTags(selectedProjectId);
             setConceptTags(tagRes.tags);
@@ -423,7 +427,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
   );
 
   useAutoSave(handleSaveAll, {
-    shouldSkip: () => showMaterialLabRef.current,
+    shouldSkip: () => showMaterialLabRef.current || showStageLabRef.current,
   });
 
   const handleMaterialLabNotify = useCallback((message: string, type?: "info" | "error") => {
@@ -757,6 +761,8 @@ export default function App({ workspace, onRefresh }: AppProps) {
                 onToggleGallery={() => setGalleryCollapsed((v) => !v)}
                 showMaterialLab={side === "blender"}
                 onOpenMaterialLab={() => setShowMaterialLab(true)}
+                showStageLab={side === "blender" && normalizeAssetDomain(selectedProject.domain) === "terrain"}
+                onOpenStageLab={() => setShowStageLab(true)}
               />
 
               <div className="content-area">
@@ -908,6 +914,14 @@ export default function App({ workspace, onRefresh }: AppProps) {
           )}
         </main>
       </div>
+
+      {showStageLab && selectedProject && side === "blender" && (
+        <StageLabModal
+          project={selectedProject}
+          onClose={() => setShowStageLab(false)}
+          onNotify={handleMaterialLabNotify}
+        />
+      )}
 
       {showMaterialLab && selectedProject && side === "blender" && (
         <MaterialLabModal

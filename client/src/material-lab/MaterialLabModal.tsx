@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { normalizeAssetDomain } from "../config/assetDomains";
 import type { ProjectLink } from "../types";
 import type { MaterialCheckItem, MaterialLabState } from "./materialLabTypes";
 import {
@@ -137,13 +138,17 @@ export function MaterialLabModal({
     }
   };
 
+  const isTerrainProject = normalizeAssetDomain(project.domain) === "terrain";
+
   return (
     <div className="modal-overlay material-lab-overlay" onClick={handleClose}>
       <div className="material-lab-modal" onClick={(e) => e.stopPropagation()}>
         <header className="material-lab-header">
           <div>
             <h2>材质实验室</h2>
-            <p className="muted">{project.displayName} · 生产项目</p>
+            <p className="muted">
+              {project.displayName} · {isTerrainProject || state?.shaderType === "toon_terrain_urp" ? "地形 Toon" : "角色 Toon"}
+            </p>
           </div>
           <div className="material-lab-header-actions">
             {dirty && <span className="material-lab-dirty">未保存</span>}
@@ -169,6 +174,7 @@ export function MaterialLabModal({
             <aside className="material-lab-col material-lab-col-left">
               <TextureSlotPanel
                 textures={state.textures}
+                shaderType={state.shaderType}
                 projectRoot={projectRoot}
                 onRemap={() => void handleRemap()}
                 onMergeMetallic={() => void handleMerge()}
@@ -211,13 +217,14 @@ export function MaterialLabModal({
                 projectRoot={projectRoot}
                 modelRelativePath={state.preview.modelPath}
                 baseColorRelativePath={state.textures.baseColor.path}
-                normalRelativePath={state.textures.normal.path}
+                shaderType={state.shaderType}
                 params={state.params}
               />
             </main>
 
             <aside className="material-lab-col material-lab-col-right">
               <MaterialParamPanel
+                shaderType={state.shaderType}
                 params={state.params}
                 onChange={(params) => updateState({ ...state, params })}
               />

@@ -7,7 +7,7 @@ import type {
   MasterWorkspace,
   ProjectLink,
 } from "./types.js";
-import { DEFAULT_ASSET_DOMAIN, normalizeAssetDomain } from "./assetDomains.js";
+import { DEFAULT_ASSET_DOMAIN, migrateLegacyProjectDomain, normalizeAssetDomain } from "./assetDomains.js";
 import { debugLog } from "./debugLog.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -72,7 +72,7 @@ export async function ensureDataDir(): Promise<void> {
 }
 
 function normalizeProject(project: Partial<ProjectLink> & { meshPath?: string }): ProjectLink {
-  return {
+  const base: ProjectLink = {
     id: project.id || `project-${Date.now()}`,
     displayName: project.displayName || "Unnamed",
     domain: normalizeAssetDomain(project.domain),
@@ -80,6 +80,7 @@ function normalizeProject(project: Partial<ProjectLink> & { meshPath?: string })
     blenderPath: project.blenderPath || "",
     stage: project.stage || "concept",
   };
+  return migrateLegacyProjectDomain(base);
 }
 
 function migrateLegacyConfig(raw: LegacyWorkspaceConfig): AppState {

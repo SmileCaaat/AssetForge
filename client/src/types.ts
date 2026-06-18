@@ -137,7 +137,7 @@ export interface ConceptTagsResponse {
 export interface ProjectLink {
   id: string;
   displayName: string;
-  /** Asset pipeline category: character, scene, prop, ui, vfx */
+  /** Asset pipeline category: character, terrain, scene, prop, ui, vfx */
   domain?: import("./config/assetDomains").AssetDomain;
   conceptPath: string;
   blenderPath: string;
@@ -172,7 +172,7 @@ export interface FileNode {
 
 export type ProjectSide = "concept" | "blender";
 
-export type OpenFolderTarget = "root" | "concept" | "blender";
+export type OpenFolderTarget = "root" | "concept" | "blender" | "terrain";
 
 export interface WorkspaceResponse {
   activeWorkspaceId: string;

@@ -1,12 +1,21 @@
-import { Suspense, useEffect, useMemo, useRef } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
-import { Center, OrbitControls, useFBX } from "@react-three/drei";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import { Suspense, useEffect, useMemo } from "react";
+import { Canvas } from "@react-three/fiber";
+import { Center, useFBX } from "@react-three/drei";
 import { SkeletonUtils } from "three-stdlib";
 import * as THREE from "three";
-import type { MaterialLabParams } from "./materialLabTypes";
+import type { MaterialLabParams, MaterialLabShaderType } from "./materialLabTypes";
+import { isTerrainMaterialLab } from "./materialLabTypes";
 import { fileUrl } from "../api";
-import { disposeMaterial, disposeObject3D, disposeTexture } from "../lib/threeCleanup";
+import { TerrainPreviewLightSync } from "./TerrainPreviewLightSync";
+import {
+  TERRAIN_PREVIEW_LIGHT_COLOR,
+  TERRAIN_PREVIEW_LIGHT_DIR,
+  TERRAIN_TOON_FRAG,
+  TERRAIN_TOON_VERT,
+} from "./terrainToonShader";
+import { enableDoubleSideMaterials } from "../lib/meshPreviewUtils";
+import { disposeMaterial, disposeObjectGeometry, disposeTexture } from "../lib/threeCleanup";
+import { SceneCameraController } from "../lib/SceneCameraController";
 
 /** 阶段 A 已验证的 Toon 核心（几何法线，不采样 Normal 贴图） */
 const TOON_VERT = `
@@ -132,28 +141,56 @@ function useBaseTexture(url: string | null): THREE.Texture | null {
   }, [url]);
 }
 
-function useToonMaterial(texture: THREE.Texture | null, params: MaterialLabParams): THREE.ShaderMaterial {
+function useToonMaterial(
+  texture: THREE.Texture | null,
+  params: MaterialLabParams,
+  shaderType: MaterialLabShaderType,
+): THREE.ShaderMaterial {
+  const isTerrain = isTerrainMaterialLab({ shaderType });
   const material = useMemo(() => {
+    const uniforms: Record<string, { value: unknown }> = {
+      baseMap: { value: texture },
+      hasBaseMap: { value: texture ? 1 : 0 },
+      baseColorTint: { value: new THREE.Vector4(...params.baseColorTint) },
+      baseSaturation: { value: params.baseSaturation },
+      baseValue: { value: params.baseValue },
+      lightDir: { value: new THREE.Vector3(0.4, 0.8, 0.5) },
+    };
+
+    if (isTerrain) {
+      uniforms.rampSteps = { value: params.rampSteps };
+      uniforms.rampBlend = { value: params.terrainRampBlend ?? 0.18 };
+      uniforms.albedoInfluence = { value: params.terrainAlbedoInfluence ?? 0.72 };
+      uniforms.albedoPosterize = { value: params.terrainAlbedoPosterize ?? 0.22 };
+      uniforms.normalStrength = { value: params.terrainNormalStrength ?? 1.15 };
+      uniforms.celShadowColor = { value: new THREE.Vector3(...params.celShadowColor.slice(0, 3)) };
+      uniforms.celHighlightColor = { value: new THREE.Vector3(...params.celHighlightColor.slice(0, 3)) };
+      uniforms.shadowReceiveStrength = { value: params.shadowReceiveStrength ?? 0.7 };
+      uniforms.ambientStrength = { value: params.ambientStrength ?? 0.25 };
+      uniforms.lightColorInfluence = { value: params.lightColorInfluence ?? 0.6 };
+      uniforms.distanceSmoothStrength = { value: params.terrainDistanceSmooth ?? 0.35 };
+      uniforms.distanceSmoothFar = { value: 48 };
+      uniforms.slopeTintStrength = { value: params.terrainSlopeTint ?? 0.12 };
+      uniforms.slopeRockTint = { value: new THREE.Vector3(0.55, 0.5, 0.42) };
+      uniforms.lightDir = { value: TERRAIN_PREVIEW_LIGHT_DIR.clone() };
+      uniforms.lightColor = { value: TERRAIN_PREVIEW_LIGHT_COLOR.clone() };
+    } else {
+      uniforms.contrast = { value: params.contrast };
+      uniforms.rampSteps = { value: params.rampSteps };
+      uniforms.shadowStrength = { value: params.shadowStrength };
+      uniforms.rimColor = { value: new THREE.Vector3(...params.rimColor.slice(0, 3)) };
+      uniforms.rimPower = { value: params.rimPower };
+      uniforms.rimIntensity = { value: params.rimIntensity };
+      uniforms.matcapStrength = { value: params.matcapStrength };
+    }
+
     return new THREE.ShaderMaterial({
-      vertexShader: TOON_VERT,
-      fragmentShader: TOON_FRAG,
-      uniforms: {
-        baseMap: { value: texture },
-        hasBaseMap: { value: texture ? 1 : 0 },
-        baseColorTint: { value: new THREE.Vector4(...params.baseColorTint) },
-        baseSaturation: { value: params.baseSaturation },
-        baseValue: { value: params.baseValue },
-        contrast: { value: params.contrast },
-        rampSteps: { value: params.rampSteps },
-        shadowStrength: { value: params.shadowStrength },
-        rimColor: { value: new THREE.Vector3(...params.rimColor.slice(0, 3)) },
-        rimPower: { value: params.rimPower },
-        rimIntensity: { value: params.rimIntensity },
-        matcapStrength: { value: params.matcapStrength },
-        lightDir: { value: new THREE.Vector3(0.4, 0.8, 0.5) },
-      },
+      vertexShader: isTerrain ? TERRAIN_TOON_VERT : TOON_VERT,
+      fragmentShader: isTerrain ? TERRAIN_TOON_FRAG : TOON_FRAG,
+      uniforms,
+      side: THREE.DoubleSide,
     });
-  }, [texture]);
+  }, [texture, isTerrain]);
 
   useEffect(() => () => disposeMaterial(material), [material]);
 
@@ -166,14 +203,30 @@ function useToonMaterial(texture: THREE.Texture | null, params: MaterialLabParam
     material.uniforms.baseColorTint.value.set(...params.baseColorTint);
     material.uniforms.baseSaturation.value = params.baseSaturation;
     material.uniforms.baseValue.value = params.baseValue;
-    material.uniforms.contrast.value = params.contrast;
-    material.uniforms.rampSteps.value = params.rampSteps;
-    material.uniforms.shadowStrength.value = params.shadowStrength;
-    material.uniforms.rimColor.value.set(...params.rimColor.slice(0, 3));
-    material.uniforms.rimPower.value = params.rimPower;
-    material.uniforms.rimIntensity.value = params.rimIntensity;
-    material.uniforms.matcapStrength.value = params.matcapStrength;
-  }, [material, params]);
+
+    if (isTerrain) {
+      material.uniforms.rampSteps.value = params.rampSteps;
+      material.uniforms.rampBlend.value = params.terrainRampBlend ?? 0.18;
+      material.uniforms.albedoInfluence.value = params.terrainAlbedoInfluence ?? 0.72;
+      material.uniforms.albedoPosterize.value = params.terrainAlbedoPosterize ?? 0.22;
+      material.uniforms.normalStrength.value = params.terrainNormalStrength ?? 1.15;
+      material.uniforms.celShadowColor.value.set(...params.celShadowColor.slice(0, 3));
+      material.uniforms.celHighlightColor.value.set(...params.celHighlightColor.slice(0, 3));
+      material.uniforms.shadowReceiveStrength.value = params.shadowReceiveStrength ?? 0.7;
+      material.uniforms.ambientStrength.value = params.ambientStrength ?? 0.25;
+      material.uniforms.lightColorInfluence.value = params.lightColorInfluence ?? 0.6;
+      material.uniforms.distanceSmoothStrength.value = params.terrainDistanceSmooth ?? 0.35;
+      material.uniforms.slopeTintStrength.value = params.terrainSlopeTint ?? 0.12;
+    } else {
+      material.uniforms.contrast.value = params.contrast;
+      material.uniforms.rampSteps.value = params.rampSteps;
+      material.uniforms.shadowStrength.value = params.shadowStrength;
+      material.uniforms.rimColor.value.set(...params.rimColor.slice(0, 3));
+      material.uniforms.rimPower.value = params.rimPower;
+      material.uniforms.rimIntensity.value = params.rimIntensity;
+      material.uniforms.matcapStrength.value = params.matcapStrength;
+    }
+  }, [material, params, isTerrain]);
 
   return material;
 }
@@ -256,15 +309,20 @@ function FbxPreview({
   outlineEnabled: boolean;
 }) {
   const cached = useFBX(modelUrl);
-  const body = useMemo(() => SkeletonUtils.clone(cached) as THREE.Group, [cached, modelUrl]);
+  const body = useMemo(() => {
+    const clone = SkeletonUtils.clone(cached) as THREE.Group;
+    enableDoubleSideMaterials(clone);
+    return clone;
+  }, [cached, modelUrl]);
   const outline = useMemo(() => {
     if (!outlineEnabled) return null;
     return SkeletonUtils.clone(cached) as THREE.Group;
   }, [cached, modelUrl, outlineEnabled]);
 
-  useEffect(() => () => disposeObject3D(body), [body]);
+  useEffect(() => () => disposeObjectGeometry(body), [body]);
   useEffect(() => {
-    if (outline) return () => disposeObject3D(outline);
+    if (!outline) return;
+    return () => disposeObjectGeometry(outline);
   }, [outline]);
 
   useEffect(() => {
@@ -287,66 +345,62 @@ function FbxPreview({
 function ToonMesh({
   modelUrl,
   baseColorUrl,
+  shaderType,
   params,
 }: {
   modelUrl: string | null;
   baseColorUrl: string | null;
+  shaderType: MaterialLabShaderType;
   params: MaterialLabParams;
 }) {
   const texture = useBaseTexture(baseColorUrl);
   useEffect(() => () => disposeTexture(texture), [texture]);
 
-  const toonMaterial = useToonMaterial(texture, params);
+  const toonMaterial = useToonMaterial(texture, params, shaderType);
   const outlineMaterial = useOutlineMaterial(params);
+  const isTerrain = isTerrainMaterialLab({ shaderType });
 
   if (modelUrl) {
     return (
-      <FbxPreview
-        modelUrl={modelUrl}
-        toonMaterial={toonMaterial}
-        outlineMaterial={outlineMaterial}
-        outlineEnabled={params.outlineEnabled}
-      />
+      <>
+        <FbxPreview
+          modelUrl={modelUrl}
+          toonMaterial={toonMaterial}
+          outlineMaterial={outlineMaterial}
+          outlineEnabled={!isTerrain && params.outlineEnabled}
+        />
+        {isTerrain && <TerrainPreviewLightSync material={toonMaterial} />}
+      </>
     );
   }
 
   return (
-    <SpherePreview
-      toonMaterial={toonMaterial}
-      outlineMaterial={outlineMaterial}
-      outlineEnabled={params.outlineEnabled}
-    />
+    <>
+      <SpherePreview
+        toonMaterial={toonMaterial}
+        outlineMaterial={outlineMaterial}
+        outlineEnabled={!isTerrain && params.outlineEnabled}
+      />
+      {isTerrain && <TerrainPreviewLightSync material={toonMaterial} />}
+    </>
   );
 }
 
-function CameraReset({ modelUrl }: { modelUrl: string | null }) {
-  const { camera, scene } = useThree();
-  const controlsRef = useRef<OrbitControlsImpl | null>(null);
-
-  useEffect(() => {
-    const box = new THREE.Box3();
-    scene.updateMatrixWorld(true);
-    scene.traverse((obj) => {
-      if ((obj as THREE.Mesh).isMesh) box.expandByObject(obj);
-    });
-    const center = box.isEmpty() ? new THREE.Vector3() : box.getCenter(new THREE.Vector3());
-    const size = box.isEmpty() ? new THREE.Vector3(1, 1, 1) : box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z, 0.001);
-    const distance = maxDim * 2.4;
-    camera.position.set(center.x, center.y, center.z + distance);
-    camera.lookAt(center);
-    controlsRef.current?.target.copy(center);
-    controlsRef.current?.update();
-  }, [camera, scene, modelUrl]);
-
-  return <OrbitControls ref={controlsRef} makeDefault />;
+function CameraReset({
+  modelUrl,
+  isTerrain,
+}: {
+  modelUrl: string | null;
+  isTerrain: boolean;
+}) {
+  return <SceneCameraController mode={isTerrain ? "terrain" : "auto"} resetKey={modelUrl} />;
 }
 
 interface MaterialPreviewCanvasProps {
   projectRoot: string | null;
   modelRelativePath: string;
   baseColorRelativePath: string;
-  normalRelativePath: string;
+  shaderType: MaterialLabShaderType;
   params: MaterialLabParams;
 }
 
@@ -360,8 +414,10 @@ export function MaterialPreviewCanvas({
   projectRoot,
   modelRelativePath,
   baseColorRelativePath,
+  shaderType,
   params,
 }: MaterialPreviewCanvasProps) {
+  const isTerrain = isTerrainMaterialLab({ shaderType });
   const modelUrl = useMemo(
     () => resolveFileUrl(projectRoot, modelRelativePath),
     [projectRoot, modelRelativePath],
@@ -375,17 +431,37 @@ export function MaterialPreviewCanvas({
 
   return (
     <div className="material-lab-preview">
-      <Canvas key={canvasKey} camera={{ position: [0, 0, 3], fov: 45 }} gl={{ antialias: true }}>
+      <Canvas
+        key={canvasKey}
+        camera={{ position: [0, 12, 24], fov: 45, near: 0.1, far: 5000 }}
+        gl={{ antialias: true }}
+      >
         <color attach="background" args={["#2a2f3a"]} />
-        <ambientLight intensity={0.35} />
-        <directionalLight position={[4, 6, 3]} intensity={1.1} />
+        {!isTerrain && (
+          <>
+            <ambientLight intensity={0.35} />
+            <directionalLight position={[4, 6, 3]} intensity={1.1} />
+          </>
+        )}
         <Suspense fallback={null}>
-          <ToonMesh modelUrl={modelUrl} baseColorUrl={baseColorUrl} params={params} />
-          <CameraReset modelUrl={modelUrl} />
+          <ToonMesh
+            modelUrl={modelUrl}
+            baseColorUrl={baseColorUrl}
+            shaderType={shaderType}
+            params={params}
+          />
+          <CameraReset modelUrl={modelUrl} isTerrain={isTerrain} />
         </Suspense>
       </Canvas>
       {!modelRelativePath && (
-        <div className="material-lab-preview-hint">未找到 exports FBX，显示默认球体</div>
+        <div className="material-lab-preview-hint">
+          {isTerrain ? "未找到 exports/SM_*_Terrain.fbx，显示默认球体" : "未找到 exports FBX，显示默认球体"}
+        </div>
+      )}
+      {isTerrain && modelRelativePath && (
+        <div className="material-lab-preview-hint material-lab-preview-hint-sub">
+          预览对齐 Unity ToonTerrainURP（无实时阴影贴图，角色投影请在 Unity 查看）
+        </div>
       )}
     </div>
   );

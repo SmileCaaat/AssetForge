@@ -4,6 +4,8 @@ export interface MaterialLabTextureSlot {
   colorSpace: "sRGB" | "Non-Color";
 }
 
+export type MaterialLabShaderType = "toon_urp" | "toon_terrain_urp";
+
 export interface MaterialLabParams {
   baseColorTint: [number, number, number, number];
   baseSaturation: number;
@@ -22,13 +24,27 @@ export interface MaterialLabParams {
   outlineFadeStart: number;
   outlineFadeEnd: number;
   outlineMinWidth: number;
+  shadowReceiveStrength?: number;
+  ambientStrength?: number;
+  rimLightInfluence?: number;
+  lightColorInfluence?: number;
+  celShadowColor: [number, number, number, number];
+  celHighlightColor: [number, number, number, number];
+  celHighlightPos: number;
+  posterizeLevels: [number, number, number, number, number];
+  terrainRampBlend?: number;
+  terrainAlbedoInfluence?: number;
+  terrainNormalStrength?: number;
+  terrainAlbedoPosterize?: number;
+  terrainDistanceSmooth?: number;
+  terrainSlopeTint?: number;
 }
 
 export interface MaterialLabState {
   version: 1;
   projectName: string;
   displayName: string;
-  shaderType: "toon_urp";
+  shaderType: MaterialLabShaderType;
   preview: {
     modelPath: string;
     cameraMode: "front" | "orbit";
@@ -108,3 +124,7 @@ export const TEXTURE_SLOT_LABELS: Record<keyof MaterialLabState["textures"], str
   ao: "AO",
   emission: "Emission",
 };
+
+export function isTerrainMaterialLab(state: Pick<MaterialLabState, "shaderType">): boolean {
+  return state.shaderType === "toon_terrain_urp";
+}

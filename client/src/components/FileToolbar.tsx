@@ -20,6 +20,8 @@ interface FileToolbarProps {
   onToggleGallery?: () => void;
   showMaterialLab?: boolean;
   onOpenMaterialLab?: () => void;
+  showStageLab?: boolean;
+  onOpenStageLab?: () => void;
 }
 
 export function FileToolbar({
@@ -41,6 +43,8 @@ export function FileToolbar({
   onToggleGallery,
   showMaterialLab = false,
   onOpenMaterialLab,
+  showStageLab = false,
+  onOpenStageLab,
 }: FileToolbarProps) {
   const canModify = hasSelection && !isRoot;
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -99,6 +103,14 @@ export function FileToolbar({
         >
           {galleryVisible ? "隐藏画廊" : "显示画廊"}
         </button>
+      )}
+      {showStageLab && onOpenStageLab && (
+        <>
+          <span className="toolbar-sep" />
+          <button type="button" onClick={onOpenStageLab} title="打开 Stage Lab（2.5D 语义舞台）">
+            Stage Lab
+          </button>
+        </>
       )}
       {showMaterialLab && onOpenMaterialLab && (
         <>

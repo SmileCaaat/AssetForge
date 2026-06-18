@@ -1,9 +1,10 @@
-export type AssetDomain = "character" | "scene" | "prop" | "ui" | "vfx";
+export type AssetDomain = "character" | "terrain" | "scene" | "prop" | "ui" | "vfx";
 
 export const DEFAULT_ASSET_DOMAIN: AssetDomain = "character";
 
 export const ASSET_DOMAIN_ORDER: AssetDomain[] = [
   "character",
+  "terrain",
   "scene",
   "prop",
   "ui",
@@ -12,6 +13,7 @@ export const ASSET_DOMAIN_ORDER: AssetDomain[] = [
 
 export const ASSET_DOMAIN_LABELS: Record<AssetDomain, string> = {
   character: "角色",
+  terrain: "地形",
   scene: "场景",
   prop: "道具",
   ui: "UI",
@@ -21,7 +23,8 @@ export const ASSET_DOMAIN_LABELS: Record<AssetDomain, string> = {
 /** Domains that can browse projects and create new ones. */
 export const ASSET_DOMAIN_ENABLED: Record<AssetDomain, boolean> = {
   character: true,
-  scene: true,
+  terrain: true,
+  scene: false,
   prop: false,
   ui: false,
   vfx: false,
@@ -30,7 +33,8 @@ export const ASSET_DOMAIN_ENABLED: Record<AssetDomain, boolean> = {
 /** Domains shown greyed out and not selectable in the tab bar. */
 export const ASSET_DOMAIN_LOCKED: Record<AssetDomain, boolean> = {
   character: false,
-  scene: false,
+  terrain: false,
+  scene: true,
   prop: true,
   ui: true,
   vfx: true,
@@ -39,6 +43,7 @@ export const ASSET_DOMAIN_LOCKED: Record<AssetDomain, boolean> = {
 export function normalizeAssetDomain(value: unknown): AssetDomain {
   if (
     value === "character" ||
+    value === "terrain" ||
     value === "scene" ||
     value === "prop" ||
     value === "ui" ||
@@ -47,4 +52,14 @@ export function normalizeAssetDomain(value: unknown): AssetDomain {
     return value;
   }
   return DEFAULT_ASSET_DOMAIN;
+}
+
+/** 旧版 session 里存的 scene 表示地形时代的大类 */
+export function migrateLegacySessionDomain(value: string | null): AssetDomain | null {
+  if (!value) return null;
+  if (value === "scene") return "terrain";
+  if (ASSET_DOMAIN_ORDER.includes(value as AssetDomain)) {
+    return value as AssetDomain;
+  }
+  return null;
 }
