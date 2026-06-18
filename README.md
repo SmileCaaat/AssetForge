@@ -127,18 +127,20 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 - 新建项目自动 `首字母大写` + `_Terrain` 后缀；Blender 轻量目录（无 `animations/mixamo`）
 - 生产侧可走 **Material Lab** 导出 Unity 包（与角色相同 Toon 管线）
 
-**轨道 B — Stage Lab（规划中）**
+**轨道 B — Stage Lab（已上线 v1）**
 
-- 2.5D 固定 16:9 舞台：Semantic Control Map → 派生 Walkable / Decoration / PropAnchor Mask
+- 可变比例 2.5D 舞台（16:9 / 1:1 / 2:1 / 3:1 / 4:1 / 自定义宽:高）+ S/M/L 像素层级自动换算
+- Semantic Control Map → BaseColor 提示词 → Image2 → TextureWiz（外部）
 - 开发说明：[devplan/AssetManagerTools_Terrain_StageLab_AICODING.md](./devplan/AssetManagerTools_Terrain_StageLab_AICODING.md)
-- 数据目录：`TerrainWorkspace/stages/<StageName>/`（与 `BlenderWorkspace/projects/` 并列）
+- 数据目录：`TerrainWorkspace/stages/<StageName>/`
 
 ### 材质实验室（Material Lab，生产侧）
 
 在生产视图工具栏点击 **「材质实验室」** 打开全屏 Modal：
 
 - 自动读取 `blender_texture_tags.json` 填充贴图槽
-- Toon 参数实时预览 + **8 组参数预设**
+- Toon 参数实时预览 + **8 组材质参数预设**
+- **预览定向光**：方位/仰角、颜色、强度、环境光 + **6 组光照预设**（角色/地形共用，仅预览不写 Unity 包）
 - 保存 `.asset-manager/material_lab.json`
 - **合并 Metallic + Roughness** → `T_<Name>_MetallicSmoothness.png`（R=Metallic, A=Smoothness）
 - **检查 Unity 贴图规范**
@@ -164,7 +166,7 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
     ├── UnityAssets/             # Material Lab 导出的 Unity 就绪角色包
     │   ├── Editor/
     │   └── <项目名>/
-    ├── TerrainWorkspace/        # Stage Lab 舞台项目（规划）
+    ├── TerrainWorkspace/        # Stage Lab 舞台项目
     │   └── stages/
     │       └── <StageName>/
     │           ├── .asset-manager/stage.json

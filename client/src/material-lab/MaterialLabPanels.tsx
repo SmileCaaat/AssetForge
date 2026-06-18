@@ -7,6 +7,8 @@ import {
   MATERIAL_LAB_PRESETS,
   TERRAIN_MATERIAL_LAB_PRESETS,
 } from "./materialLabPresets";
+import { PreviewLightPanel } from "./PreviewLightPanel";
+import type { PreviewLightSettings } from "./materialPreviewLights";
 
 interface TextureSlotPanelProps {
   textures: MaterialLabState["textures"];
@@ -83,6 +85,8 @@ export function TextureSlotPanel({
 interface MaterialParamPanelProps {
   shaderType: MaterialLabShaderType;
   params: MaterialLabParams;
+  previewLightSettings: PreviewLightSettings;
+  onPreviewLightChange: (settings: PreviewLightSettings) => void;
   onChange: (params: MaterialLabParams) => void;
 }
 
@@ -182,6 +186,7 @@ function TerrainMaterialParamPanel({ params, onChange }: { params: MaterialLabPa
       <ColorRow label="Cel 亮部" value={params.celHighlightColor} onChange={(v) => patch({ celHighlightColor: v })} />
       <SliderRow label="接收阴影" value={params.shadowReceiveStrength ?? 0.7} min={0} max={1} step={0.01} onChange={(v) => patch({ shadowReceiveStrength: v })} />
       <SliderRow label="环境光" value={params.ambientStrength ?? 0.25} min={0} max={1} step={0.01} onChange={(v) => patch({ ambientStrength: v })} />
+      <SliderRow label="主光色影响" value={params.lightColorInfluence ?? 0.6} min={0} max={1} step={0.01} onChange={(v) => patch({ lightColorInfluence: v })} />
       <SliderRow label="远景平滑" value={params.terrainDistanceSmooth ?? 0.35} min={0} max={0.8} step={0.01} onChange={(v) => patch({ terrainDistanceSmooth: v })} />
       <SliderRow label="坡度染色" value={params.terrainSlopeTint ?? 0.12} min={0} max={0.4} step={0.01} onChange={(v) => patch({ terrainSlopeTint: v })} />
     </>
@@ -217,6 +222,9 @@ function CharacterMaterialParamPanel({ params, onChange }: { params: MaterialLab
       <SliderRow label="Contrast" value={params.contrast} min={0} max={1} step={0.01} onChange={(v) => patch({ contrast: v })} />
       <SliderRow label="Ramp Steps" value={params.rampSteps} min={1} max={8} step={1} onChange={(v) => patch({ rampSteps: v })} />
       <SliderRow label="Shadow" value={params.shadowStrength} min={0} max={1} step={0.01} onChange={(v) => patch({ shadowStrength: v })} />
+      <SliderRow label="接收阴影" value={params.shadowReceiveStrength ?? 0.7} min={0} max={1} step={0.01} onChange={(v) => patch({ shadowReceiveStrength: v })} />
+      <SliderRow label="环境光" value={params.ambientStrength ?? 0.25} min={0} max={1} step={0.01} onChange={(v) => patch({ ambientStrength: v })} />
+      <SliderRow label="主光色影响" value={params.lightColorInfluence ?? 0.6} min={0} max={1} step={0.01} onChange={(v) => patch({ lightColorInfluence: v })} />
       <ColorRow label="Rim Color" value={params.rimColor} onChange={(v) => patch({ rimColor: v })} />
       <SliderRow label="Rim Power" value={params.rimPower} min={0.5} max={12} step={0.1} onChange={(v) => patch({ rimPower: v })} />
       <SliderRow label="Rim Intensity" value={params.rimIntensity} min={0} max={8} step={0.1} onChange={(v) => patch({ rimIntensity: v })} />
@@ -239,11 +247,18 @@ function CharacterMaterialParamPanel({ params, onChange }: { params: MaterialLab
   );
 }
 
-export function MaterialParamPanel({ shaderType, params, onChange }: MaterialParamPanelProps) {
+export function MaterialParamPanel({
+  shaderType,
+  params,
+  previewLightSettings,
+  onPreviewLightChange,
+  onChange,
+}: MaterialParamPanelProps) {
   const isTerrain = isTerrainMaterialLab({ shaderType });
 
   return (
     <div className="material-lab-panel material-param-panel">
+      <PreviewLightPanel lightSettings={previewLightSettings} onChange={onPreviewLightChange} />
       {isTerrain ? (
         <TerrainMaterialParamPanel params={params} onChange={onChange} />
       ) : (

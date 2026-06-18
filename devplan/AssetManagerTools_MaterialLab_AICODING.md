@@ -15,7 +15,8 @@
 ## 零、实现状态（同步仓库，请以此为准）
 
 > **最后更新：2026-06-16** · 仓库：`main` 分支。  
-> Unity 实机验收通过（Mushpig / Punchgob / stonemork / Overview_Terrain 投影）；**Slang 阶段 B 正式搁置**，维持 fallback HLSL 即可。
+> Unity 实机验收通过（Mushpig / Punchgob / stonemork / Overview_Terrain 投影）；**Slang 阶段 B 正式搁置**，维持 fallback HLSL 即可。  
+> 预览定向光（角度/颜色/强度/预设）与 Stage Lab 多比例舞台已合入。
 
 ### 总览
 
@@ -23,7 +24,7 @@
 |------|------|------|
 | **阶段 A** — Material Lab MVP | **已完成** | 可日常使用 |
 | **阶段 C** — Unity 导出体验 | **已完成** | `UnityAssets/<项目名>/` 整包 + Asset Manager 批量/单个导入 |
-| **阶段 D** — 预览精调 | **部分完成** | Outline 远景 LOD、Matcap/预设；网页预览仍为简化光照与几何法线 |
+| **阶段 D** — 预览精调 | **部分完成** | Outline 远景 LOD、Matcap/预设、**可调预览定向光**；网页仍为简化光照与几何法线 |
 | **阶段 B** — Slang `slangc` | **搁置** | Unity 效果已满足需求，**不再计划实现** |
 
 ### 已实现（Material Lab 主线）
@@ -66,9 +67,23 @@ BlenderWorkspace/UnityAssets/
 **网页预览**
 
 - BaseColor + Toon 色阶 + Rim + Outline（远景 LOD 与 Unity 公式同步；仍为 Three.js 简化光照）
-- **地形预览**（`terrainToonShader.ts`）：ForwardLit 逻辑与 Unity ToonTerrainURP 同步；无实时阴影贴图（角色投影以 Unity 为准）
+- **预览定向光**（`materialPreviewLights.ts` + `MaterialPreviewLightRig.tsx` + `PreviewLightPanel.tsx`）：
+  - **角色 + 地形共用**；同步 Shader `lightDir` / `lightColor`（颜色 × 强度）
+  - 可调：**方位角**、**仰角**、**光照颜色**、**光照强度**、**环境光**
+  - **6 组光照预设**：Unity 默认、正午冷白、黄昏暖光、阴天柔光、强侧光、逆光
+  - 场景内 **DirectionalLightHelper** 辅助线；**不写 Unity 包**，对齐 Unity 定向光需手动调 Rotation / Color / Intensity
+- **地形预览**（`terrainToonShader.ts`）：ForwardLit 与 Unity ToonTerrainURP 同步；无实时阴影贴图（角色投影以 Unity 为准）
+- **角色预览**：补全 `shadowReceiveStrength` / `ambientStrength` / `lightColorInfluence` 与 Unity ToonURP 对齐
 - Matcap 程序化近似（MatcapStrength > 0）
 - **与 Unity 存在可见差异是正常的**；Unity 为最终验收标准
+
+**代码位置（预览光照）**
+
+```text
+client/src/material-lab/materialPreviewLights.ts   # 角度/颜色/强度 + 预设定义
+client/src/material-lab/MaterialPreviewLightRig.tsx
+client/src/material-lab/PreviewLightPanel.tsx
+```
 
 **数据与 API**
 

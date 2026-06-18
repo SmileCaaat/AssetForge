@@ -30,7 +30,7 @@ export interface StageJson {
   stageName: string;
   displayName: string;
   stageType: string;
-  aspect: "16:9";
+  aspect: string;
   worldSize: StageWorldSize;
   actualGroundSize: StageWorldSize;
   resolution: StageResolution;
@@ -75,12 +75,6 @@ export interface StageStateResponse {
   message?: string;
   error?: string;
 }
-
-export const STAGE_SIZE_PRESETS = [
-  { id: "s", label: "S (32×18)", worldSize: { width: 32, height: 18 }, resolution: { width: 2048, height: 1152 } },
-  { id: "m", label: "M (48×27)", worldSize: { width: 48, height: 27 }, resolution: { width: 3072, height: 1728 } },
-  { id: "l", label: "L (64×36)", worldSize: { width: 64, height: 36 }, resolution: { width: 4096, height: 2304 } },
-] as const;
 
 export const STAGE_TYPE_OPTIONS = [
   { id: "ruin_road", label: "遗迹道路" },

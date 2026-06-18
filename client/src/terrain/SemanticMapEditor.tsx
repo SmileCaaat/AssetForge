@@ -935,7 +935,7 @@ export function SemanticMapEditor({
       <div
         ref={wrapRef}
         className="semantic-canvas-wrap"
-        style={{ aspectRatio: "16 / 9" }}
+        style={{ aspectRatio: `${iw} / ${ih}` }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

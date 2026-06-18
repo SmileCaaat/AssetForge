@@ -1,7 +1,16 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { StagePixelTierId } from "./stageSizing";
 import type { StageSummary } from "./terrainTypes";
-import { STAGE_SIZE_PRESETS, STAGE_TYPE_OPTIONS } from "./terrainTypes";
+import { STAGE_TYPE_OPTIONS } from "./terrainTypes";
 import { STAGE_NEW_HINT } from "./stageWorkflow";
+import {
+  STAGE_ASPECT_PRESETS,
+  STAGE_PIXEL_TIERS,
+  computeStageDimensions,
+  formatStageDimensionsSummary,
+  parseAspectRatio,
+  type StageAspectPresetId,
+} from "./stageSizing";
 import { capitalizeFirstLetter } from "../utils/projectNaming";
 
 interface NewStageFormProps {
@@ -10,8 +19,8 @@ interface NewStageFormProps {
     stageName: string;
     displayName: string;
     stageType: string;
-    worldSize: { width: number; height: number };
-    resolution: { width: number; height: number };
+    aspect: string;
+    pixelTier: StagePixelTierId;
   }) => void;
 }
 
@@ -19,20 +28,40 @@ export function NewStageForm({ creating, onCreate }: NewStageFormProps) {
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [stageType, setStageType] = useState<string>(STAGE_TYPE_OPTIONS[0].id);
-  const [sizePreset, setSizePreset] = useState<(typeof STAGE_SIZE_PRESETS)[number]["id"]>("s");
+  const [aspectPreset, setAspectPreset] = useState<StageAspectPresetId>("16:9");
+  const [customWidthRatio, setCustomWidthRatio] = useState("5");
+  const [customHeightRatio, setCustomHeightRatio] = useState("3");
+  const [pixelTier, setPixelTier] = useState<StagePixelTierId>("s");
 
-  const preset = STAGE_SIZE_PRESETS.find((p) => p.id === sizePreset) ?? STAGE_SIZE_PRESETS[0];
   const derivedName = capitalizeFirstLetter(name.trim().replace(/\s+/g, "_"));
+
+  const resolvedAspect = useMemo(() => {
+    if (aspectPreset === "custom") {
+      return parseAspectRatio(`${customWidthRatio}:${customHeightRatio}`);
+    }
+    const preset = STAGE_ASPECT_PRESETS.find((p) => p.id === aspectPreset);
+    if (!preset) return null;
+    return parseAspectRatio(preset.id);
+  }, [aspectPreset, customWidthRatio, customHeightRatio]);
+
+  const dimensions = useMemo(() => {
+    if (!resolvedAspect) return null;
+    return computeStageDimensions(resolvedAspect, pixelTier);
+  }, [resolvedAspect, pixelTier]);
+
+  const customAspectInvalid =
+    aspectPreset === "custom" &&
+    (!customWidthRatio.trim() || !customHeightRatio.trim() || !resolvedAspect);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!derivedName) return;
+    if (!derivedName || !dimensions) return;
     onCreate({
       stageName: derivedName,
       displayName: displayName.trim() || derivedName,
       stageType,
-      worldSize: preset.worldSize,
-      resolution: preset.resolution,
+      aspect: dimensions.aspect,
+      pixelTier,
     });
   };
 
@@ -69,20 +98,84 @@ export function NewStageForm({ creating, onCreate }: NewStageFormProps) {
           ))}
         </select>
       </label>
+
       <label>
-        尺寸预设（16:9）
+        舞台比例（宽:高）
         <select
-          value={sizePreset}
-          onChange={(e) => setSizePreset(e.target.value as typeof sizePreset)}
+          value={aspectPreset}
+          onChange={(e) => setAspectPreset(e.target.value as StageAspectPresetId)}
         >
-          {STAGE_SIZE_PRESETS.map((p) => (
+          {STAGE_ASPECT_PRESETS.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.label} · {p.resolution.width}×{p.resolution.height}px
+              {p.label}
             </option>
           ))}
+          <option value="custom">自定义比例…</option>
         </select>
       </label>
-      <button type="submit" className="btn-primary" disabled={creating || !derivedName}>
+
+      {aspectPreset === "custom" && (
+        <div className="stage-aspect-custom-row">
+          <label>
+            宽
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              value={customWidthRatio}
+              onChange={(e) => setCustomWidthRatio(e.target.value)}
+              placeholder="宽"
+            />
+          </label>
+          <span className="stage-aspect-sep">:</span>
+          <label>
+            高
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              value={customHeightRatio}
+              onChange={(e) => setCustomHeightRatio(e.target.value)}
+              placeholder="高"
+            />
+          </label>
+        </div>
+      )}
+      {customAspectInvalid && (
+        <p className="stage-aspect-error muted">请输入有效的宽:高比例（例如 5 和 3）</p>
+      )}
+
+      <label>
+        像素层级
+        <select
+          value={pixelTier}
+          onChange={(e) => setPixelTier(e.target.value as StagePixelTierId)}
+        >
+          {STAGE_PIXEL_TIERS.map((tier) => {
+            const preview = resolvedAspect
+              ? computeStageDimensions(resolvedAspect, tier.id)
+              : null;
+            return (
+              <option key={tier.id} value={tier.id}>
+                {tier.label}
+                {preview ? ` · ${preview.resolution.width}×${preview.resolution.height}px` : ""}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+
+      {dimensions && (
+        <p className="stage-dimensions-preview muted">
+          比例 <strong>{dimensions.aspect}</strong> → {formatStageDimensionsSummary(dimensions)}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        className="btn-primary"
+        disabled={creating || !derivedName || !dimensions || customAspectInvalid}
+      >
         {creating ? "创建中…" : "创建 Stage"}
       </button>
     </form>

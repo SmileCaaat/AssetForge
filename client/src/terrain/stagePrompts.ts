@@ -35,7 +35,7 @@ Style:
 - Clean readable ground surfaces suitable for top-down gameplay.
 
 Output:
-- Single 16:9 BaseColor map matching stage resolution.
+- Single ${stage.aspect} BaseColor map matching stage resolution (${stage.resolution.width}×${stage.resolution.height}).
 - File: ${stage.textures.baseColor}`;
 }
 

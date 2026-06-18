@@ -11,7 +11,7 @@ Stage Lab / Semantic Control Map Editor
 > **与仓库现状对齐（2026-06）**  
 > - 侧边栏 **地形** Tab 已存在（`AssetDomain = terrain`），与 **场景**（`scene`，灰色预留）分离。  
 > - 当前地形 **逻辑项目** = `ConceptWorkspace` + `BlenderWorkspace/projects/<Name>_Terrain` 双轨目录，面向 **单块地形 FBX 网格**（无 mixamo）。  
-> - **Stage Lab** 是地形大类下的 **第二条工作流**，面向 **16:9 语义舞台**；**当前 UI 聚焦 SemanticControl + BaseColor**，Height/Normal/AO/Mask 由外部工具或磁盘文件承载，见下方「当前实现状态」。  
+> - **Stage Lab** 是地形大类下的 **第二条工作流**，面向 **可配置比例语义舞台**（默认 16:9）；**当前 UI 聚焦 SemanticControl + BaseColor**，Height/Normal/AO/Mask 由外部工具或磁盘文件承载，见下方「当前实现状态」。  
 > - 实现方式参考 **Material Lab**：生产视图工具栏入口 → 全屏 Modal，不重构 `App.tsx` 主骨架。
 
 ---
@@ -47,6 +47,28 @@ Stage Lab / Semantic Control Map Editor
 **关键文件：** `server/stageTypes.ts` · `server/services/stageProjectService.ts` · `server/services/stagePromptService.ts` · `server/routes/terrainStage.ts` · `client/src/terrain/terrainTypes.ts`
 
 **仍完整保留：** 语义程序化生成（区域随机 + 融合修饰 + 进度条）→ `devplan/StageLab_SemanticProcedural_AICODING.md`；SemanticMapEditor **BaseColor 参考叠加层**。
+
+### 舞台比例与像素层级（2026-06）
+
+新建 Stage 时按 **宽:高 比例** + **像素层级** 自动换算分辨率与世界尺寸（**不需手填像素**）。
+
+| 比例预设 | 说明 |
+|----------|------|
+| `16:9` | 默认宽屏舞台 |
+| `1:1` / `2:1` / `3:1` / `4:1` | 方形与横向长条舞台 |
+| **自定义** | 输入宽、高两个比例数（如 5:3） |
+
+| 像素层级 | 横向基准像素 | 16:9 示例分辨率 |
+|----------|--------------|-----------------|
+| S | 2048 | 2048×1152 |
+| M | 3072 | 3072×1728 |
+| L | 4096 | 4096×2304 |
+
+换算规则：`resolution.height = round(baseWidth × 高比例 / 宽比例)`；`worldSize = resolution / 64`（Unity 单位）。
+
+**关键文件：** `server/stageSizing.ts` · `client/src/terrain/stageSizing.ts` · `client/src/terrain/StageLabPanels.tsx`（新建表单）
+
+`stage.json` 的 `aspect` 字段现为字符串（如 `"16:9"`、`"3:1"`），迁移时从 `resolution` 反推。
 
 **刻意不做：** Mask 派生（walkable/decoration/propAnchor）— 未验证，仅概念；TextureWiz 产出由 Blender 消费，不进 `stage.json`。
 

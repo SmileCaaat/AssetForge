@@ -31,6 +31,8 @@ export function createStage(input: {
   stageName: string;
   displayName?: string;
   stageType?: string;
+  aspect?: string;
+  pixelTier?: "s" | "m" | "l";
   worldSize?: { width: number; height: number };
   resolution?: { width: number; height: number };
 }): Promise<StageStateResponse> {

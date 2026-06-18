@@ -1,5 +1,3 @@
-import * as THREE from "three";
-
 /**
  * 与 server/templates/unity/ToonTerrainURP.template.shader ForwardLit 保持同步。
  * 修改 HLSL 时请同步更新此文件。
@@ -118,9 +116,3 @@ void main() {
   gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }
 `;
-
-/** 与 Unity 场景默认定向光接近的方向（指向光源） */
-export const TERRAIN_PREVIEW_LIGHT_DIR = new THREE.Vector3(0.38, 0.82, 0.42).normalize();
-
-/** Unity 定向光默认暖白色 */
-export const TERRAIN_PREVIEW_LIGHT_COLOR = new THREE.Vector3(1.0, 0.96, 0.9);

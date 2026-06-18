@@ -6,13 +6,14 @@ import * as THREE from "three";
 import type { MaterialLabParams, MaterialLabShaderType } from "./materialLabTypes";
 import { isTerrainMaterialLab } from "./materialLabTypes";
 import { fileUrl } from "../api";
-import { TerrainPreviewLightSync } from "./TerrainPreviewLightSync";
+import { MaterialPreviewLightRig } from "./MaterialPreviewLightRig";
 import {
-  TERRAIN_PREVIEW_LIGHT_COLOR,
-  TERRAIN_PREVIEW_LIGHT_DIR,
-  TERRAIN_TOON_FRAG,
-  TERRAIN_TOON_VERT,
-} from "./terrainToonShader";
+  DEFAULT_PREVIEW_LIGHT_SETTINGS,
+  previewLightDirectionFromAngles,
+  previewLightShaderColor,
+  type PreviewLightSettings,
+} from "./materialPreviewLights";
+import { TERRAIN_TOON_FRAG, TERRAIN_TOON_VERT } from "./terrainToonShader";
 import { enableDoubleSideMaterials } from "../lib/meshPreviewUtils";
 import { disposeMaterial, disposeObjectGeometry, disposeTexture } from "../lib/threeCleanup";
 import { SceneCameraController } from "../lib/SceneCameraController";
@@ -45,7 +46,11 @@ uniform vec3 rimColor;
 uniform float rimPower;
 uniform float rimIntensity;
 uniform float matcapStrength;
+uniform float shadowReceiveStrength;
+uniform float ambientStrength;
 uniform vec3 lightDir;
+uniform vec3 lightColor;
+uniform float lightColorInfluence;
 varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vViewDir;
@@ -77,10 +82,14 @@ void main() {
   vec3 l = normalize(lightDir);
   vec3 v = normalize(vViewDir);
   float ndotl = max(dot(n, l), 0.0);
+  float fakeShadow = smoothstep(0.12, 0.62, ndotl);
+  float litNdotl = ndotl * mix(1.0, fakeShadow, clamp(shadowReceiveStrength, 0.0, 1.0));
   float steps = max(rampSteps, 1.0);
-  float level = floor(ndotl * steps) / max(steps - 1.0, 1.0);
+  float level = floor(litNdotl * steps) / max(steps - 1.0, 1.0);
   float shade = mix(shadowStrength, 1.0, level);
   vec3 color = base * shade;
+  color *= mix(vec3(1.0), lightColor, clamp(lightColorInfluence, 0.0, 1.0));
+  color += base * ambientStrength * 0.35;
 
   float rim = pow(1.0 - max(dot(n, v), 0.0), rimPower);
   color += rimColor * rim * rimIntensity;
@@ -154,7 +163,14 @@ function useToonMaterial(
       baseColorTint: { value: new THREE.Vector4(...params.baseColorTint) },
       baseSaturation: { value: params.baseSaturation },
       baseValue: { value: params.baseValue },
-      lightDir: { value: new THREE.Vector3(0.4, 0.8, 0.5) },
+      lightDir: {
+        value: previewLightDirectionFromAngles(
+          DEFAULT_PREVIEW_LIGHT_SETTINGS.azimuth,
+          DEFAULT_PREVIEW_LIGHT_SETTINGS.elevation,
+        ).clone(),
+      },
+      lightColor: { value: previewLightShaderColor(DEFAULT_PREVIEW_LIGHT_SETTINGS).clone() },
+      lightColorInfluence: { value: params.lightColorInfluence ?? 0.6 },
     };
 
     if (isTerrain) {
@@ -172,9 +188,10 @@ function useToonMaterial(
       uniforms.distanceSmoothFar = { value: 48 };
       uniforms.slopeTintStrength = { value: params.terrainSlopeTint ?? 0.12 };
       uniforms.slopeRockTint = { value: new THREE.Vector3(0.55, 0.5, 0.42) };
-      uniforms.lightDir = { value: TERRAIN_PREVIEW_LIGHT_DIR.clone() };
-      uniforms.lightColor = { value: TERRAIN_PREVIEW_LIGHT_COLOR.clone() };
     } else {
+      uniforms.shadowReceiveStrength = { value: params.shadowReceiveStrength ?? 0.7 };
+      uniforms.ambientStrength = { value: params.ambientStrength ?? 0.25 };
+      uniforms.lightColorInfluence = { value: params.lightColorInfluence ?? 0.6 };
       uniforms.contrast = { value: params.contrast };
       uniforms.rampSteps = { value: params.rampSteps };
       uniforms.shadowStrength = { value: params.shadowStrength };
@@ -218,6 +235,9 @@ function useToonMaterial(
       material.uniforms.distanceSmoothStrength.value = params.terrainDistanceSmooth ?? 0.35;
       material.uniforms.slopeTintStrength.value = params.terrainSlopeTint ?? 0.12;
     } else {
+      material.uniforms.shadowReceiveStrength.value = params.shadowReceiveStrength ?? 0.7;
+      material.uniforms.ambientStrength.value = params.ambientStrength ?? 0.25;
+      material.uniforms.lightColorInfluence.value = params.lightColorInfluence ?? 0.6;
       material.uniforms.contrast.value = params.contrast;
       material.uniforms.rampSteps.value = params.rampSteps;
       material.uniforms.shadowStrength.value = params.shadowStrength;
@@ -347,11 +367,13 @@ function ToonMesh({
   baseColorUrl,
   shaderType,
   params,
+  lightSettings,
 }: {
   modelUrl: string | null;
   baseColorUrl: string | null;
   shaderType: MaterialLabShaderType;
   params: MaterialLabParams;
+  lightSettings: PreviewLightSettings;
 }) {
   const texture = useBaseTexture(baseColorUrl);
   useEffect(() => () => disposeTexture(texture), [texture]);
@@ -369,7 +391,7 @@ function ToonMesh({
           outlineMaterial={outlineMaterial}
           outlineEnabled={!isTerrain && params.outlineEnabled}
         />
-        {isTerrain && <TerrainPreviewLightSync material={toonMaterial} />}
+        <MaterialPreviewLightRig material={toonMaterial} lightSettings={lightSettings} />
       </>
     );
   }
@@ -381,7 +403,7 @@ function ToonMesh({
         outlineMaterial={outlineMaterial}
         outlineEnabled={!isTerrain && params.outlineEnabled}
       />
-      {isTerrain && <TerrainPreviewLightSync material={toonMaterial} />}
+      <MaterialPreviewLightRig material={toonMaterial} lightSettings={lightSettings} />
     </>
   );
 }
@@ -402,6 +424,7 @@ interface MaterialPreviewCanvasProps {
   baseColorRelativePath: string;
   shaderType: MaterialLabShaderType;
   params: MaterialLabParams;
+  lightSettings: PreviewLightSettings;
 }
 
 function resolveFileUrl(projectRoot: string | null, relativePath: string): string | null {
@@ -416,6 +439,7 @@ export function MaterialPreviewCanvas({
   baseColorRelativePath,
   shaderType,
   params,
+  lightSettings,
 }: MaterialPreviewCanvasProps) {
   const isTerrain = isTerrainMaterialLab({ shaderType });
   const modelUrl = useMemo(
@@ -437,18 +461,13 @@ export function MaterialPreviewCanvas({
         gl={{ antialias: true }}
       >
         <color attach="background" args={["#2a2f3a"]} />
-        {!isTerrain && (
-          <>
-            <ambientLight intensity={0.35} />
-            <directionalLight position={[4, 6, 3]} intensity={1.1} />
-          </>
-        )}
         <Suspense fallback={null}>
           <ToonMesh
             modelUrl={modelUrl}
             baseColorUrl={baseColorUrl}
             shaderType={shaderType}
             params={params}
+            lightSettings={lightSettings}
           />
           <CameraReset modelUrl={modelUrl} isTerrain={isTerrain} />
         </Suspense>
@@ -458,9 +477,11 @@ export function MaterialPreviewCanvas({
           {isTerrain ? "未找到 exports/SM_*_Terrain.fbx，显示默认球体" : "未找到 exports FBX，显示默认球体"}
         </div>
       )}
-      {isTerrain && modelRelativePath && (
+      {modelRelativePath && (
         <div className="material-lab-preview-hint material-lab-preview-hint-sub">
-          预览对齐 Unity ToonTerrainURP（无实时阴影贴图，角色投影请在 Unity 查看）
+          {isTerrain
+            ? "预览含可调定向光；投射阴影请在 Unity 查看"
+            : "预览含可调定向光（与地形共用逻辑）"}
         </div>
       )}
     </div>

@@ -9,6 +9,12 @@ import type {
   StageTextureStatus,
 } from "../stageTypes.js";
 import { STAGE_JSON_VERSION, STAGE_TEXTURE_SLOTS } from "../stageTypes.js";
+import {
+  computeStageDimensions,
+  inferAspectLabelFromResolution,
+  parseAspectRatio,
+  type StagePixelTierId,
+} from "../stageSizing.js";
 import { assertPathInsideRoot } from "../pathSecurity.js";
 import { getTerrainRoot } from "../workspacePaths.js";
 import { mirrorStageTextureToConcept } from "./stageConceptMirror.js";
@@ -58,11 +64,45 @@ function emptyTextures(stageName: string): StageJson["textures"] {
 async function loadStageDefaults() {
   return readJsonFile<{
     stageType: string;
-    aspect: "16:9";
+    aspect: string;
     worldSize: { width: number; height: number; unit: string };
     resolution: { width: number; height: number };
     promptProfile: StageJson["promptProfile"];
   }>(path.join(TEMPLATES_DIR, "stage_defaults.json"));
+}
+
+function resolveCreateStageDimensions(
+  input: CreateStageInput,
+  defaults: Awaited<ReturnType<typeof loadStageDefaults>>,
+): {
+  aspect: string;
+  worldSize: { width: number; height: number };
+  resolution: { width: number; height: number };
+} {
+  if (input.worldSize && input.resolution) {
+    const aspect =
+      typeof input.aspect === "string" && input.aspect.trim()
+        ? input.aspect.trim()
+        : inferAspectLabelFromResolution(input.resolution.width, input.resolution.height);
+    return {
+      aspect,
+      worldSize: { width: input.worldSize.width, height: input.worldSize.height },
+      resolution: { width: input.resolution.width, height: input.resolution.height },
+    };
+  }
+
+  const aspectInput = input.aspect?.trim() || defaults.aspect || "16:9";
+  const parsed = parseAspectRatio(aspectInput);
+  if (!parsed) {
+    throw new Error(`Invalid aspect ratio: ${aspectInput}`);
+  }
+  const tier: StagePixelTierId = input.pixelTier ?? "s";
+  const computed = computeStageDimensions(parsed, tier);
+  return {
+    aspect: computed.aspect,
+    worldSize: computed.worldSize,
+    resolution: computed.resolution,
+  };
 }
 
 function stageMetaPath(stageRoot: string): string {
@@ -135,17 +175,19 @@ export function migrateStageJson(raw: unknown, defaults?: Awaited<ReturnType<typ
 
   const def = defaults;
   const worldSize = asWorldSize(r.worldSize, def?.worldSize ?? { width: 32, height: 18, unit: "unity" });
+  const resolution = asResolution(r.resolution, def?.resolution ?? { width: 2048, height: 1152 });
   const texturesRaw = asRecord(r.textures);
+  const aspectRaw = typeof r.aspect === "string" && r.aspect.trim() ? r.aspect.trim() : null;
 
   return {
     version: STAGE_JSON_VERSION,
     stageName,
     displayName: String(r.displayName ?? stageName).trim() || stageName,
     stageType: typeof r.stageType === "string" ? r.stageType : def?.stageType ?? "ruin_road",
-    aspect: "16:9",
+    aspect: aspectRaw ?? inferAspectLabelFromResolution(resolution.width, resolution.height),
     worldSize,
     actualGroundSize: asWorldSize(r.actualGroundSize, computeActualGroundSize(worldSize.width, worldSize.height)),
-    resolution: asResolution(r.resolution, def?.resolution ?? { width: 2048, height: 1152 }),
+    resolution,
     textures: {
       baseColor:
         typeof texturesRaw.baseColor === "string"
@@ -258,8 +300,9 @@ export async function createStage(
   }
 
   const defaults = await loadStageDefaults();
-  const worldWidth = input.worldSize?.width ?? defaults.worldSize.width;
-  const worldHeight = input.worldSize?.height ?? defaults.worldSize.height;
+  const dimensions = resolveCreateStageDimensions(input, defaults);
+  const worldWidth = dimensions.worldSize.width;
+  const worldHeight = dimensions.worldSize.height;
 
   for (const dir of STAGE_SUBDIRS) {
     await fs.mkdir(path.join(stageRoot, dir), { recursive: true });
@@ -274,10 +317,10 @@ export async function createStage(
     stageName,
     displayName: input.displayName?.trim() || stageName,
     stageType: input.stageType || defaults.stageType,
-    aspect: defaults.aspect,
+    aspect: dimensions.aspect,
     worldSize: { width: worldWidth, height: worldHeight, unit: "unity" },
     actualGroundSize: computeActualGroundSize(worldWidth, worldHeight),
-    resolution: input.resolution ?? defaults.resolution,
+    resolution: dimensions.resolution,
     textures: emptyTextures(stageName),
     palette: "semantic_palette.json",
     promptProfile: { ...defaults.promptProfile },

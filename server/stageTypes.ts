@@ -35,7 +35,7 @@ export interface StageJson {
   stageName: string;
   displayName: string;
   stageType: string;
-  aspect: "16:9";
+  aspect: string;
   worldSize: StageWorldSize;
   actualGroundSize: StageWorldSize;
   resolution: StageResolution;
@@ -67,6 +67,9 @@ export interface CreateStageInput {
   stageName: string;
   displayName?: string;
   stageType?: string;
+  /** 宽:高 比例，如 `16:9`、`3:1`；与 pixelTier 配合自动换算像素与世界尺寸 */
+  aspect?: string;
+  pixelTier?: "s" | "m" | "l";
   worldSize?: { width: number; height: number };
   resolution?: { width: number; height: number };
 }

@@ -11,6 +11,10 @@ import {
 } from "./materialLabApi";
 import { MaterialParamPanel, TextureSlotPanel } from "./MaterialLabPanels";
 import { MaterialPreviewCanvas } from "./MaterialPreviewCanvas";
+import {
+  DEFAULT_PREVIEW_LIGHT_SETTINGS,
+  type PreviewLightSettings,
+} from "./materialPreviewLights";
 
 interface MaterialLabModalProps {
   project: ProjectLink;
@@ -36,6 +40,9 @@ export function MaterialLabModal({
   const [checking, setChecking] = useState(false);
   const [checkItems, setCheckItems] = useState<MaterialCheckItem[]>([]);
   const [exportFiles, setExportFiles] = useState<string[]>([]);
+  const [previewLightSettings, setPreviewLightSettings] = useState<PreviewLightSettings>(
+    () => ({ ...DEFAULT_PREVIEW_LIGHT_SETTINGS }),
+  );
   const savedSnapshot = useRef("");
   const onNotifyRef = useRef(onNotify);
   const onRefreshProjectRef = useRef(onRefreshProject);
@@ -219,6 +226,7 @@ export function MaterialLabModal({
                 baseColorRelativePath={state.textures.baseColor.path}
                 shaderType={state.shaderType}
                 params={state.params}
+                lightSettings={previewLightSettings}
               />
             </main>
 
@@ -226,6 +234,8 @@ export function MaterialLabModal({
               <MaterialParamPanel
                 shaderType={state.shaderType}
                 params={state.params}
+                previewLightSettings={previewLightSettings}
+                onPreviewLightChange={setPreviewLightSettings}
                 onChange={(params) => updateState({ ...state, params })}
               />
             </aside>
