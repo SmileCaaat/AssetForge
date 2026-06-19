@@ -44,7 +44,7 @@ export interface FileNode {
   modifiedAt?: string;
 }
 
-export type ProjectSide = "concept" | "blender";
+export type ProjectSide = "concept" | "blender" | "rigging";
 
 export type OpenFolderTarget = "root" | "concept" | "blender" | "terrain";
 

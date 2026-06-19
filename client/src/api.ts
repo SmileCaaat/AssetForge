@@ -5,6 +5,8 @@ import type {
   OpenFolderTarget,
   ProjectLink,
   ProjectSide,
+  ProductionAssetRole,
+  ProductionAssetTagsResponse,
   TextureMapType,
   TextureResizePreset,
   TextureTagsResponse,
@@ -44,7 +46,7 @@ export function formatApiError(error: unknown): string {
   return msg.replace(/^Error:\s*/i, "");
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetchWithDevFallback(url, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -155,7 +157,14 @@ export function markConceptAsset(
   projectId: string,
   filePath: string,
   role: ConceptAssetRole,
-): Promise<{ path: string; name: string; role: ConceptAssetRole; relativePath: string }> {
+): Promise<{
+  path: string;
+  name: string;
+  role: ConceptAssetRole;
+  relativePath: string;
+  rigInputPath?: string;
+  rigInputRelativePath?: string;
+}> {
   return request(`/api/projects/${projectId}/mark-concept`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -176,6 +185,27 @@ export function markTextureMap(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filePath, type }),
+  });
+}
+
+export function fetchProductionAssetTags(projectId: string): Promise<ProductionAssetTagsResponse> {
+  return request<ProductionAssetTagsResponse>(`/api/projects/${projectId}/production-asset-tags`);
+}
+
+export function markProductionAsset(
+  projectId: string,
+  filePath: string,
+  role: ProductionAssetRole,
+): Promise<{
+  path: string;
+  name: string;
+  role: ProductionAssetRole;
+  relativePath: string;
+}> {
+  return request(`/api/projects/${projectId}/mark-production-asset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filePath, role }),
   });
 }
 

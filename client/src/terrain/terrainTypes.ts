@@ -4,7 +4,7 @@ export const STAGE_TEXTURE_SLOTS: StageTextureSlot[] = ["semanticControl", "base
 
 export const STAGE_TEXTURE_SLOT_LABELS: Record<StageTextureSlot, string> = {
   baseColor: "BaseColor",
-  semanticControl: "Semantic Control",
+  semanticControl: "语义控制图",
 };
 
 export const STAGE_UPLOAD_SLOTS: StageTextureSlot[] = ["baseColor", "semanticControl"];

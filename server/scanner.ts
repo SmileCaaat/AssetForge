@@ -202,9 +202,9 @@ export async function collectPreviewableFiles(
 export function resolveProjectPath(
   workspace: MasterWorkspace,
   project: ProjectLink,
-  side: "concept" | "blender",
+  side: "concept" | "blender" | "rigging",
 ): string {
-  return side === "concept"
-    ? path.join(getConceptRoot(workspace), project.conceptPath)
-    : path.join(getBlenderRoot(workspace), project.blenderPath);
+  if (side === "concept") return path.join(getConceptRoot(workspace), project.conceptPath);
+  const blenderProjectRoot = path.join(getBlenderRoot(workspace), project.blenderPath);
+  return side === "rigging" ? path.join(blenderProjectRoot, "Rigging") : blenderProjectRoot;
 }

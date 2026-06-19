@@ -3,6 +3,7 @@ import type { FileNode, ProjectLink, ProjectSide, TextureResizePreset } from "..
 import { TEXTURE_SIZE_PRESETS } from "../types";
 import { fileUrl, formatSize, isBlendFile, isImageFile, isModelFile } from "../api";
 import { ModelViewer, type ModelViewerHandle } from "./ModelViewer";
+import { RigPreviewViewer } from "../rigging/RigPreviewViewer";
 
 interface PreviewPanelProps {
   file: FileNode | null;
@@ -35,11 +36,13 @@ export function PreviewPanel({
   const [flipHorizontal, setFlipHorizontal] = useState(false);
   const [flipVertical, setFlipVertical] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0);
+  const [showRigPreview, setShowRigPreview] = useState(false);
 
   useEffect(() => {
     setFlipHorizontal(false);
     setFlipVertical(false);
     setPreviewVersion(0);
+    setShowRigPreview(false);
   }, [file?.path]);
 
   if (!file) {
@@ -47,7 +50,11 @@ export function PreviewPanel({
       <div className="preview-empty">
         <p>从左侧选择图片或 3D 模型进行预览</p>
         <p className="muted">
-          {side === "concept" ? project.conceptPath : project.blenderPath}
+          {side === "concept"
+            ? project.conceptPath
+            : side === "rigging"
+              ? `${project.blenderPath}/Rigging`
+              : project.blenderPath}
         </p>
       </div>
     );
@@ -56,6 +63,7 @@ export function PreviewPanel({
   const showTextureResize = side === "blender" && isImageFile(file) && onResizeTexture;
   const showConceptMirror = side === "concept" && isImageFile(file) && onMirrorImage;
   const hasMirrorPreview = flipHorizontal || flipVertical;
+  const canShowRigPreview = side === "rigging" && isModelFile(file) && file.extension === ".fbx";
 
   const handleResize = async (size: TextureResizePreset) => {
     if (!onResizeTexture || resizing) return;
@@ -152,6 +160,15 @@ export function PreviewPanel({
                 正视图
               </button>
             )}
+            {canShowRigPreview && (
+              <button
+                type="button"
+                className={`preview-action-btn ${showRigPreview ? "active" : ""}`}
+                onClick={() => setShowRigPreview((value) => !value)}
+              >
+                骨骼预览
+              </button>
+            )}
           </div>
         </div>
         <span>{file.relativePath}</span>
@@ -195,6 +212,12 @@ export function PreviewPanel({
       {isModelFile(file) && file.extension && (
         suspendModelPreview ? (
           <div className="preview-fallback muted">项目加载中，3D 预览已暂停…</div>
+        ) : showRigPreview && canShowRigPreview ? (
+          <RigPreviewViewer
+            key={`${previewKey ?? "preview"}-${file.path}-rig`}
+            filePath={file.path}
+            extension={file.extension}
+          />
         ) : (
           <ModelViewer
             key={`${previewKey ?? "preview"}-${file.path}`}

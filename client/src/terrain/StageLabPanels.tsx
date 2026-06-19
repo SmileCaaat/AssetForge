@@ -67,11 +67,11 @@ export function NewStageForm({ creating, onCreate }: NewStageFormProps) {
 
   return (
     <form className="stage-new-form material-lab-panel" onSubmit={handleSubmit}>
-      <h4>新建 Stage</h4>
+      <h4>新建地形语义</h4>
       <p className="muted stage-new-hint">{STAGE_NEW_HINT}</p>
 
       <label>
-        Stage 名称
+        语义名称
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -100,7 +100,7 @@ export function NewStageForm({ creating, onCreate }: NewStageFormProps) {
       </label>
 
       <label>
-        舞台比例（宽:高）
+        地形比例（宽:高）
         <select
           value={aspectPreset}
           onChange={(e) => setAspectPreset(e.target.value as StageAspectPresetId)}
@@ -176,7 +176,7 @@ export function NewStageForm({ creating, onCreate }: NewStageFormProps) {
         className="btn-primary"
         disabled={creating || !derivedName || !dimensions || customAspectInvalid}
       >
-        {creating ? "创建中…" : "创建 Stage"}
+        {creating ? "创建中…" : "创建地形语义"}
       </button>
     </form>
   );
@@ -199,9 +199,9 @@ export function StageListPanel({
 }: StageListPanelProps) {
   return (
     <div className="material-lab-panel stage-list-panel">
-      <h4>Stage 列表</h4>
+      <h4>地形语义列表</h4>
       {stages.length === 0 ? (
-        <p className="muted">暂无 Stage，请在下方新建。</p>
+        <p className="muted">暂无地形语义，请在下方新建。</p>
       ) : (
         <ul className="stage-list">
           {stages.map((s) => {

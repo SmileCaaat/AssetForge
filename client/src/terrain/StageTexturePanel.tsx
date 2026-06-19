@@ -48,7 +48,7 @@ export function StageTexturePanel({
     <div className="material-lab-panel stage-texture-panel">
       <h4>贴图槽管理</h4>
       <p className="muted">
-        权威路径：<code>TerrainWorkspace/stages/…</code>。保存/上传 SemanticControl、BaseColor 时，会同步到概念侧{" "}
+        权威路径：<code>TerrainWorkspace/stages/…</code>。保存/上传语义控制图、BaseColor 时，会同步到概念侧{" "}
         {conceptProjectPath ? (
           <code>
             {conceptProjectPath}/stage-lab/{stage.stageName}/textures/

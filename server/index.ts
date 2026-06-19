@@ -56,6 +56,13 @@ import {
   TEXTURE_MAP_TYPES,
 } from "./blenderTextureTags.js";
 import type { TextureMapType } from "./blenderTextureTags.js";
+import {
+  loadProductionAssetTags,
+  markProductionAsset,
+  PRODUCTION_ASSET_ROLES,
+  resolveProductionAssetTagsByPath,
+} from "./productionAssetTags.js";
+import type { ProductionAssetRole } from "./productionAssetTags.js";
 import { resizeTextureImage, TEXTURE_RESIZE_PRESETS } from "./imageResize.js";
 import { mirrorImage } from "./imageMirror.js";
 import {
@@ -73,6 +80,8 @@ import { importFilesToDirectory } from "./importFiles.js";
 import multer from "multer";
 import { materialLabRouter } from "./routes/materialLab.js";
 import { terrainStageRouter } from "./routes/terrainStage.js";
+import { riggingRouter } from "./routes/rigging.js";
+import { syncLowPolyToRigInput } from "./services/riggingService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3456;
@@ -611,7 +620,20 @@ app.post("/api/projects/:id/mark-concept", async (req, res) => {
       role,
       allowedRoots: getAllowedRoots(state),
     });
-    res.json(result);
+    let rigInput: { inputPath: string; relativePath: string } | null = null;
+    if (role === "lowPoly") {
+      rigInput = await syncLowPolyToRigInput({
+        workspace: active,
+        project,
+        sourcePath: result.path,
+        allowedRoots: getAllowedRoots(state),
+      });
+    }
+    res.json({
+      ...result,
+      rigInputPath: rigInput?.inputPath,
+      rigInputRelativePath: rigInput?.relativePath,
+    });
   } catch (error) {
     res.status(400).json({ error: String(error) });
   }
@@ -657,6 +679,52 @@ app.post("/api/projects/:id/mark-texture", async (req, res) => {
       displayName: project.displayName,
       filePath,
       type,
+      allowedRoots: getAllowedRoots(state),
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: String(error) });
+  }
+});
+
+app.get("/api/projects/:id/production-asset-tags", async (req, res) => {
+  try {
+    const state = await loadConfig();
+    const active = getActiveWorkspace(state);
+    const project = findProject(state, req.params.id);
+    const { root, exists } = await resolveProjectRootWithStatus(active, project, "blender");
+    if (!exists) {
+      res.json({ tags: {}, entries: {}, missing: true, warning: missingProjectWarning(root) });
+      return;
+    }
+    const tagsFile = await loadProductionAssetTags(root);
+    const tags = resolveProductionAssetTagsByPath(root, tagsFile);
+    res.json({ tags, entries: tagsFile.tags });
+  } catch (error) {
+    res.status(404).json({ error: String(error) });
+  }
+});
+
+app.post("/api/projects/:id/mark-production-asset", async (req, res) => {
+  try {
+    const { filePath, role } = req.body as { filePath: string; role: ProductionAssetRole };
+    if (!filePath || !role) {
+      res.status(400).json({ error: "filePath and role are required" });
+      return;
+    }
+    if (!PRODUCTION_ASSET_ROLES.includes(role)) {
+      res.status(400).json({ error: "Invalid production asset role" });
+      return;
+    }
+    const state = await loadConfig();
+    const active = getActiveWorkspace(state);
+    const project = findProject(state, req.params.id);
+    const projectRoot = await resolveProjectPathAccessible(active, project, "blender");
+    const result = await markProductionAsset({
+      projectRoot,
+      displayName: project.displayName,
+      filePath,
+      role,
       allowedRoots: getAllowedRoots(state),
     });
     res.json(result);
@@ -879,6 +947,7 @@ app.post("/api/fs/import-files", upload.array("files"), async (req, res) => {
 });
 
 app.use("/api/projects", materialLabRouter);
+app.use("/api/projects", riggingRouter);
 app.use("/api/terrain", terrainStageRouter);
 
 app.get("/api/files", async (req, res) => {

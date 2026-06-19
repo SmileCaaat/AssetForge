@@ -1,8 +1,10 @@
-import type { ConceptAssetRole, FileNode, TextureMapType } from "../types";
+import type { ConceptAssetRole, FileNode, ProductionAssetRole, TextureMapType } from "../types";
 import {
   CONCEPT_ROLE_LABELS,
+  PRODUCTION_ASSET_LABELS,
   TEXTURE_TYPE_LABELS,
   conceptRoleTagClass,
+  productionAssetTagClass,
   textureTypeTagClass,
 } from "../types";
 import { fileUrl, formatSize, isImageFile, isModelFile } from "../api";
@@ -13,6 +15,7 @@ interface AssetGalleryProps {
   cutPath?: string | null;
   suspendThumbnails?: boolean;
   conceptTags?: Record<string, ConceptAssetRole>;
+  productionAssetTags?: Record<string, ProductionAssetRole>;
   textureTags?: Record<string, TextureMapType>;
   onSelect: (node: FileNode) => void;
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
@@ -21,9 +24,11 @@ interface AssetGalleryProps {
 
 function tagClass(
   conceptRole?: ConceptAssetRole,
+  productionRole?: ProductionAssetRole,
   textureType?: TextureMapType,
 ): string {
   if (conceptRole) return conceptRoleTagClass(conceptRole);
+  if (productionRole) return productionAssetTagClass(productionRole);
   if (textureType) return textureTypeTagClass();
   return "";
 }
@@ -34,6 +39,7 @@ export function AssetGallery({
   cutPath,
   suspendThumbnails = false,
   conceptTags,
+  productionAssetTags,
   textureTags,
   onSelect,
   onContextMenu,
@@ -67,17 +73,20 @@ export function AssetGallery({
     >
       {assets.map((asset) => {
         const conceptRole = conceptTags?.[asset.path];
+        const productionRole = productionAssetTags?.[asset.path];
         const textureType = textureTags?.[asset.path];
         const badgeLabel = conceptRole
           ? CONCEPT_ROLE_LABELS[conceptRole]
-          : textureType
-            ? TEXTURE_TYPE_LABELS[textureType]
-            : null;
+          : productionRole
+            ? PRODUCTION_ASSET_LABELS[productionRole]
+            : textureType
+              ? TEXTURE_TYPE_LABELS[textureType]
+              : null;
 
         return (
           <button
             key={asset.path}
-            className={`asset-card ${asset.path === selectedPath ? "selected" : ""} ${asset.path === cutPath ? "cut" : ""} ${tagClass(conceptRole, textureType)}`}
+            className={`asset-card ${asset.path === selectedPath ? "selected" : ""} ${asset.path === cutPath ? "cut" : ""} ${tagClass(conceptRole, productionRole, textureType)}`}
             onClick={() => onSelect(asset)}
             onContextMenu={(e) => {
               e.stopPropagation();

@@ -134,7 +134,7 @@ export function StageLabModal({ project, onClose, onNotify }: StageLabModalProps
         setSelectedName(res.stage.stageName);
         await loadPalette(res.stage.stageName);
       }
-      onNotifyRef.current(res.message ?? "Stage 已创建");
+      onNotifyRef.current(res.message ?? "地形语义已创建");
     } catch (error) {
       onNotifyRef.current(String(error), "error");
     } finally {
@@ -147,7 +147,7 @@ export function StageLabModal({ project, onClose, onNotify }: StageLabModalProps
     const label = summary?.displayName ?? stageName;
     if (
       !window.confirm(
-        `确定删除 Stage「${label}」？\n将永久删除 TerrainWorkspace/stages/${stageName}/ 下所有文件，不可撤销。`,
+        `确定删除地形语义「${label}」？\n将永久删除 TerrainWorkspace/stages/${stageName}/ 下所有文件，不可撤销。`,
       )
     ) {
       return;
@@ -167,7 +167,7 @@ export function StageLabModal({ project, onClose, onNotify }: StageLabModalProps
           await loadStageDetail(list[0].stageName);
         }
       }
-      onNotifyRef.current(res.message ?? "Stage 已删除");
+      onNotifyRef.current(res.message ?? "地形语义已删除");
     } catch (error) {
       onNotifyRef.current(String(error), "error");
     } finally {
@@ -222,7 +222,7 @@ export function StageLabModal({ project, onClose, onNotify }: StageLabModalProps
         conceptProjectRel: project.conceptPath,
       });
       await refreshAfterTextureChange(res);
-      onNotifyRef.current(res.message ?? "SemanticControl 已保存");
+      onNotifyRef.current(res.message ?? "语义控制图已保存");
     } catch (error) {
       onNotifyRef.current(String(error), "error");
       throw error;
@@ -266,7 +266,7 @@ export function StageLabModal({ project, onClose, onNotify }: StageLabModalProps
 
     if (actionId === "open_semantic_editor") {
       editorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      onNotifyRef.current("请在中间画布编辑 SemanticControl");
+      onNotifyRef.current("请在中间画布编辑语义控制图");
       return;
     }
 
@@ -283,7 +283,7 @@ export function StageLabModal({ project, onClose, onNotify }: StageLabModalProps
       <div className="material-lab-modal stage-lab-modal" onClick={(e) => e.stopPropagation()}>
         <header className="material-lab-header">
           <div>
-            <h2>Stage Lab</h2>
+            <h2>地形语义</h2>
             <p className="muted stage-lab-tagline">{STAGE_PRODUCT_SUMMARY}</p>
             <p className="muted">
               {project.displayName}
@@ -302,7 +302,7 @@ export function StageLabModal({ project, onClose, onNotify }: StageLabModalProps
               disabled={saving || !stage}
               onClick={() => void handleSave()}
             >
-              {saving ? "保存中…" : "保存 stage.json"}
+              {saving ? "保存中…" : "保存配置"}
             </button>
             <button type="button" className="preview-action-btn" onClick={onClose}>
               关闭
@@ -343,7 +343,7 @@ export function StageLabModal({ project, onClose, onNotify }: StageLabModalProps
                 </div>
               ) : (
                 <div className="material-lab-panel">
-                  <p className="muted">选择或新建 Stage，从绘制 SemanticControl 开始；BaseColor 可作为参考叠加层导入。</p>
+                  <p className="muted">选择或新建地形语义，从绘制语义控制图开始；BaseColor 可作为参考叠加层导入。</p>
                 </div>
               )}
             </main>

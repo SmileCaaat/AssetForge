@@ -24,7 +24,7 @@ export type SemanticFusionRecipe =
 export type SemanticProceduralRecipe = SemanticRegionRecipe | SemanticFusionRecipe;
 
 export const REGION_RECIPE_LABELS: Record<SemanticRegionRecipe, string> = {
-  random_stage_layout: "随机舞台布局",
+  random_stage_layout: "随机地形语义布局",
   random_platforms: "随机台地团块",
   random_road_network: "连接通道网络",
   random_boundary: "随机边界深草",
@@ -52,7 +52,7 @@ export const LAYOUT_SCALE_LABELS: Record<SemanticLayoutScale, string> = {
 };
 
 export const LAYOUT_SCALE_HINTS: Record<SemanticLayoutScale, string> = {
-  compact: "少量大团块，接近手绘舞台尺度",
+  compact: "少量大团块，接近手绘地形尺度",
   standard: "中等团块与通道密度",
   expansive: "更多台地，空间分布更碎",
 };
@@ -86,7 +86,7 @@ interface ResolvedProceduralOptions extends Required<ProceduralOptions> {
  * 尺度预设。
  * - featureCycles / dirtCycles：以「短边上的特征周期数」表示，运行时除以 min(width,height)
  *   得到绝对噪声 scale，从而让团块/泥地相对画面的尺寸与分辨率无关（720p 与 4K 观感一致）。
- *   数值越小 → 团块越大越少（更接近手绘单舞台尺度）。
+ *   数值越小 → 团块越大越少（更接近手绘单张地形语义图尺度）。
  */
 interface ScalePreset {
   platformCount: number;
@@ -967,7 +967,7 @@ function buildDirtFieldMask(
   return maskFromComponents(width, height, comps);
 }
 
-/** 完整随机舞台：草地底图 → 边界 → 台地 → 通道 →（可选）泥地；不生成战斗净区 */
+/** 完整随机地形语义：草地底图 → 边界 → 台地 → 通道 →（可选）泥地；不生成战斗净区 */
 async function applyRandomStageLayoutAsync(
   data: ImageData,
   palette: SemanticPalette,

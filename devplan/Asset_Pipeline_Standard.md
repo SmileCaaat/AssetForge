@@ -31,6 +31,10 @@ projects/<ProjectName>/
 ├── references/                    # 参考资料 / Shader文档
 │   └── Toon_Shader_<ProjectName>.md
 ├── renders/                       # 截图 / 预览渲染
+├── Rigging/                        # Asset ManagerTools 骨骼实验室
+│   ├── input/                      # 待绑定 FBX
+│   ├── output/                     # 自动绑定结果 FBX
+│   └── rigging_lab.json            # 最近任务状态与结果路径
 └── textures/
     ├── T_<ProjectName>_BaseColor.png
     ├── T_<ProjectName>_Normal.png
@@ -92,6 +96,18 @@ projects/<ProjectName>/
 | 纯网格(Mixamo上传用) | `exports/SM_<Name>_Low.fbx` | mesh-only，无修改器，无骨骼 |
 | 最终交付(带骨骼+动画) | `exports/SM_<Name>.fbx` | 全部Action，关闭描边Solidify修改器 |
 
+### 2.5.1 骨骼实验室输出命名
+
+Asset ManagerTools 的骨骼实验室直接写入当前角色生产项目：
+
+| 文件 | 路径 | 用途 |
+|---|---|---|
+| 待绑定低模 | `Rigging/input/<Name>_Low.fbx` | 从概念侧低模标记复制，或手动选择生产模型 |
+| 自动绑定结果 | `Rigging/output/<ProjectName>_<InputName>_Rigged_<YYYYMMDD_HHMMSS>.fbx` | SkinTokens 自动绑定结果 |
+| 任务状态 | `Rigging/rigging_lab.json` | 最近输入、输出、状态、错误、服务检查结果 |
+
+骨骼实验室输出是生产中间结果，可在确认后再整理为 `exports/SM_<Name>.fbx` 等最终交付命名。
+
 ### 2.6 概念工作区命名 (ConceptWorkspace)
 
 概念阶段文件放在 `<ConceptRoot>/<项目名>/`（与 Blender 侧 `projects/<Name>/` 逻辑关联）。**资产管理器**在概念侧提供一键标记并重命名，规则如下（`<Name>` 为项目 displayName）：
@@ -106,6 +122,20 @@ projects/<ProjectName>/
 标记元数据写入 `<概念项目>/.asset-manager/concept_tags.json`。工具启动或保存时会扫描磁盘，按上述文件名自动补全标签。
 
 > 概念侧高/低模文件名与 Blender 侧 `SM_<Name>_High` / `SM_<Name>_Low` **对象名**不同，但语义对应；进入生产流程后应使用第 2.1 / 2.5 节规范。
+> 标记为 **低模** 的概念模型可同步复制到生产项目 `Rigging/input/`，用于骨骼实验室自动绑定；复制后的生产侧标记仍应保留低模语义。
+
+### 2.7 生产资产标记扩展
+
+生产侧不再只标记材质贴图，还需要标记更多资产角色：
+
+| 标记 | 适用 | 说明 |
+|---|---|---|
+| 低模 | FBX 等模型 | 自动绑定输入、游戏低模或 Mixamo / SkinTokens 输入 |
+| 骨骼 | FBX 等模型 | 已绑定骨架的结果模型 |
+| SM 模型 | FBX 等模型 | 面向引擎或导出的标准静态 / 蒙皮模型 |
+| 纹理类型 | 图片 | BaseColor、Normal、MetallicSmoothness 等贴图槽 |
+
+生产标记应写入项目 `.asset-manager/` 下的生产元数据文件，并与文件重命名保持同步。
 
 ---
 
@@ -239,6 +269,8 @@ bpy.ops.export_scene.fbx(
 - [ ] PBR贴图已优化（AO/Height烘焙、MetallicSmoothness打包，4.1）
 - [ ] （如需要）卡通Shader已搭建并写入 `references/Toon_Shader_<Name>.md`
 - [ ] `SM_<Name>_Low.fbx` 已导出用于上传Mixamo
+- [ ] 低模已同步到 `Rigging/input/`（如使用骨骼实验室）
+- [ ] 骨骼实验室输出已写入 `Rigging/output/` 并完成预览检查（如使用自动绑定）
 - [ ] Mixamo "With Skin" 动作已下载并放入 `animations/mixamo/`
 - [ ] 骨骼/动作已导入适配，rest pose校验通过（diff=0°）
 - [ ] `A_00_BindPose` 已创建
@@ -300,6 +332,12 @@ bpy.ops.export_scene.fbx(
     { "path": "exports/SM_Punchgob_Low.fbx", "type": "mesh_only", "verified": true },
     { "path": "exports/SM_Punchgob.fbx", "type": "rigged", "verified": true }
   ],
+  "riggingLab": {
+    "input": "Rigging/input/Punchgob_Low.fbx",
+    "latestOutput": "Rigging/output/Punchgob_Punchgob_Low_Rigged_20260619_182730.fbx",
+    "runtime": "SkinTokens",
+    "verifiedPreview": true
+  },
   "checklist": {
     "folder_structure": true,
     "naming": true,
@@ -329,6 +367,7 @@ bpy.ops.export_scene.fbx(
 | 2.6 概念工作区命名 | 画廊「立绘 / 多视图 / 高模 / 低模」按钮，标记 + 自动重命名 |
 | 2.3 贴图命名 `T_<Name>_<Type>` | 生产画廊纹理类型按钮（BaseColor、Normal 等 12 类），标记 + 自动重命名 |
 | 2.3 `textures/source/` | 新建 Blender 项目自动创建；原始贴图放此目录后可在工具内标记规范化 |
+| 2.5.1 骨骼实验室 | 生产视图「骨骼实验室」：读取 `Rigging/input`，输出到 `Rigging/output`，支持骨架预览 |
 | 1 生产目录结构 | Blender 侧文件树浏览；打开工作区时自动关联概念/生产项目 |
 | 3 Mixamo 动画 FBX | FBX 预览，按文件名匹配动画 clip 并自动播放 |
 | 4 贴图 | 生产侧预览 + 256~4096 尺寸转换；概念侧镜像、图片分割导出 |
@@ -339,6 +378,7 @@ bpy.ops.export_scene.fbx(
 - `data/workspace.json` — 工作区与项目关联
 - `<概念项目>/.asset-manager/concept_tags.json` — 概念标记
 - `<生产项目>/.asset-manager/blender_texture_tags.json` — 纹理类型标记
+- `<生产项目>/Rigging/rigging_lab.json` — 骨骼实验室状态
 - `data/shortcuts.json` — 快捷键
 
 工具内「保存」或每 5 分钟自动保存会刷盘上述 JSON。

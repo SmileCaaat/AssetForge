@@ -20,7 +20,7 @@ export function StageStatusPanel({ stage, textureStatus, onAction }: StageStatus
     <div className="material-lab-panel stage-status-panel">
       <h4>核心输入状态</h4>
       <p className="muted stage-workflow-tag">
-        工作流：SemanticControl → BaseColor 提示词 → Image2 → TextureWiz（外部）
+        工作流：语义控制图 → BaseColor 提示词 → Image2 → TextureWiz（外部）
       </p>
 
       <ul className="stage-status-list">

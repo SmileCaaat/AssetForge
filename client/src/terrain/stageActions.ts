@@ -15,7 +15,7 @@ export interface StageSuggestedAction {
 }
 
 const CORE_SLOTS: { slot: StageTextureSlot; label: string; missing: string; present: string }[] = [
-  { slot: "semanticControl", label: "SemanticControl", missing: "缺失", present: "已有" },
+  { slot: "semanticControl", label: "语义控制图", missing: "缺失", present: "已有" },
   { slot: "baseColor", label: "BaseColor（参考）", missing: "缺失", present: "已有" },
 ];
 
@@ -43,8 +43,8 @@ export function getSuggestedActions(
   if (status.semanticControl) {
     actions.push({ id: "gen_basecolor_prompt", label: "生成 BaseColor 提示词" });
   } else {
-    actions.push({ id: "open_semantic_editor", label: "在画布上绘制 SemanticControl" });
-    actions.push({ id: "upload_semantic", label: "上传 SemanticControl" });
+    actions.push({ id: "open_semantic_editor", label: "在画布上绘制语义控制图" });
+    actions.push({ id: "upload_semantic", label: "上传语义控制图" });
   }
 
   if (!status.baseColor) {

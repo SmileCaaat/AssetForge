@@ -28,7 +28,7 @@ export { pathExists };
 export async function resolveProjectRootWithStatus(
   workspace: MasterWorkspace,
   project: ProjectLink,
-  side: "concept" | "blender",
+  side: "concept" | "blender" | "rigging",
 ): Promise<{ root: string; exists: boolean }> {
   const root = await resolveProjectPathAccessible(workspace, project, side);
   const exists = await pathExists(root);
@@ -42,8 +42,17 @@ function toRelativePosix(root: string, absolute: string): string {
 export async function resolveProjectPathAccessible(
   workspace: MasterWorkspace,
   project: ProjectLink,
-  side: "concept" | "blender",
+  side: "concept" | "blender" | "rigging",
 ): Promise<string> {
+  if (side === "rigging") {
+    const blenderRoot = await resolveProjectPathAccessible(workspace, project, "blender");
+    const riggingRoot = path.join(blenderRoot, "Rigging");
+    await fs.mkdir(path.join(riggingRoot, "input"), { recursive: true });
+    await fs.mkdir(path.join(riggingRoot, "output"), { recursive: true });
+    await fs.mkdir(path.join(riggingRoot, "jobs"), { recursive: true });
+    return riggingRoot;
+  }
+
   const primary =
     side === "concept"
       ? path.join(getConceptRoot(workspace), project.conceptPath)

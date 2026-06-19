@@ -22,6 +22,8 @@ interface FileToolbarProps {
   onOpenMaterialLab?: () => void;
   showStageLab?: boolean;
   onOpenStageLab?: () => void;
+  showRiggingLab?: boolean;
+  onOpenRiggingLab?: () => void;
 }
 
 export function FileToolbar({
@@ -45,6 +47,8 @@ export function FileToolbar({
   onOpenMaterialLab,
   showStageLab = false,
   onOpenStageLab,
+  showRiggingLab = false,
+  onOpenRiggingLab,
 }: FileToolbarProps) {
   const canModify = hasSelection && !isRoot;
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -107,8 +111,16 @@ export function FileToolbar({
       {showStageLab && onOpenStageLab && (
         <>
           <span className="toolbar-sep" />
-          <button type="button" onClick={onOpenStageLab} title="打开 Stage Lab（2.5D 语义舞台）">
-            Stage Lab
+          <button type="button" onClick={onOpenStageLab} title="打开地形语义控制图工具">
+            地形语义
+          </button>
+        </>
+      )}
+      {showRiggingLab && onOpenRiggingLab && (
+        <>
+          <span className="toolbar-sep" />
+          <button type="button" onClick={onOpenRiggingLab} title="打开自动骨骼绑定流程">
+            骨骼实验室
           </button>
         </>
       )}

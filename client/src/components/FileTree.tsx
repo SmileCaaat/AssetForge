@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { ConceptAssetRole, FileNode, TextureMapType } from "../types";
+import type { ConceptAssetRole, FileNode, ProductionAssetRole, TextureMapType } from "../types";
 import {
   CONCEPT_ROLE_LABELS,
+  PRODUCTION_ASSET_LABELS,
   TEXTURE_TYPE_LABELS,
   conceptRoleTagClass,
+  productionAssetTagClass,
   textureTypeTagClass,
 } from "../types";
 import { isImageFile, isModelFile } from "../api";
@@ -15,6 +17,7 @@ interface FileTreeProps {
   renamingPath?: string | null;
   cutPath?: string | null;
   conceptTags?: Record<string, ConceptAssetRole>;
+  productionAssetTags?: Record<string, ProductionAssetRole>;
   textureTags?: Record<string, TextureMapType>;
   onSelect: (node: FileNode) => void;
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
@@ -57,10 +60,32 @@ function RenameInput({
   );
 }
 
-function tagClass(conceptRole?: ConceptAssetRole, textureType?: TextureMapType): string {
+function tagClass(
+  conceptRole?: ConceptAssetRole,
+  productionRole?: ProductionAssetRole,
+  textureType?: TextureMapType,
+): string {
   if (conceptRole) return conceptRoleTagClass(conceptRole);
+  if (productionRole) return productionAssetTagClass(productionRole);
   if (textureType) return textureTypeTagClass();
   return "";
+}
+
+function tagLabel(
+  conceptRole?: ConceptAssetRole,
+  productionRole?: ProductionAssetRole,
+  textureType?: TextureMapType,
+): string | null {
+  if (conceptRole) return CONCEPT_ROLE_LABELS[conceptRole];
+  if (productionRole) return PRODUCTION_ASSET_LABELS[productionRole];
+  if (textureType) return TEXTURE_TYPE_LABELS[textureType];
+  return null;
+}
+
+function fileIconClass(node: FileNode): string {
+  if (isImageFile(node)) return "tree-kind-icon image-icon";
+  if (isModelFile(node)) return "tree-kind-icon model-icon";
+  return "tree-kind-icon document-icon";
 }
 
 function TreeNode({
@@ -70,6 +95,7 @@ function TreeNode({
   renamingPath,
   cutPath,
   conceptTags,
+  productionAssetTags,
   textureTags,
   onSelect,
   onContextMenu,
@@ -83,6 +109,7 @@ function TreeNode({
   renamingPath?: string | null;
   cutPath?: string | null;
   conceptTags?: Record<string, ConceptAssetRole>;
+  productionAssetTags?: Record<string, ProductionAssetRole>;
   textureTags?: Record<string, TextureMapType>;
   onSelect: (node: FileNode) => void;
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
@@ -96,17 +123,14 @@ function TreeNode({
   const isRenaming = node.path === renamingPath;
   const isRoot = projectRoot === node.path;
   const conceptRole = conceptTags?.[node.path];
+  const productionRole = productionAssetTags?.[node.path];
   const textureType = textureTags?.[node.path];
-  const tagLabel = conceptRole
-    ? CONCEPT_ROLE_LABELS[conceptRole]
-    : textureType
-      ? TEXTURE_TYPE_LABELS[textureType]
-      : null;
+  const label = tagLabel(conceptRole, productionRole, textureType);
 
   if (!node.isDirectory) {
     return (
       <button
-        className={`tree-file ${isSelected ? "selected" : ""} ${isCut ? "cut" : ""} ${tagClass(conceptRole, textureType)}`}
+        className={`tree-file ${isSelected ? "selected" : ""} ${isCut ? "cut" : ""} ${tagClass(conceptRole, productionRole, textureType)}`}
         style={{ paddingLeft: `${depth * 14 + 8}px` }}
         onClick={() => onSelect(node)}
         onContextMenu={(e) => {
@@ -122,11 +146,9 @@ function TreeNode({
           />
         ) : (
           <>
-            <span className="file-icon">
-              {isImageFile(node) ? "🖼" : isModelFile(node) ? "📦" : "📄"}
-            </span>
-            {node.name}
-            {tagLabel && <span className="tag-badge">{tagLabel}</span>}
+            <span className={fileIconClass(node)} aria-hidden="true" />
+            <span className="tree-node-name">{node.name}</span>
+            {label && <span className="tag-badge">{label}</span>}
           </>
         )}
       </button>
@@ -147,7 +169,7 @@ function TreeNode({
             setExpanded((v) => !v);
           }}
         >
-          {expanded ? "▼" : "▶"}
+          {expanded ? "▾" : "▸"}
         </button>
         <button
           type="button"
@@ -166,9 +188,9 @@ function TreeNode({
             />
           ) : (
             <>
-              <span>📁</span>
-              {node.name}
-              {isRoot && <span className="root-badge">根</span>}
+              <span className="folder-icon" aria-hidden="true" />
+              <span className="tree-node-name">{node.name}</span>
+              {isRoot && <span className="root-badge">根目录</span>}
             </>
           )}
         </button>
@@ -183,6 +205,7 @@ function TreeNode({
             renamingPath={renamingPath}
             cutPath={cutPath}
             conceptTags={conceptTags}
+            productionAssetTags={productionAssetTags}
             textureTags={textureTags}
             onSelect={onSelect}
             onContextMenu={onContextMenu}
@@ -202,6 +225,7 @@ export function FileTree({
   renamingPath,
   cutPath,
   conceptTags,
+  productionAssetTags,
   textureTags,
   onSelect,
   onContextMenu,
@@ -229,6 +253,7 @@ export function FileTree({
         renamingPath={renamingPath}
         cutPath={cutPath}
         conceptTags={conceptTags}
+        productionAssetTags={productionAssetTags}
         textureTags={textureTags}
         onSelect={onSelect}
         onContextMenu={onContextMenu}

@@ -2,7 +2,7 @@
 
 本地网页工具，管理 **ConceptWorkspace**（概念设计）与 **BlenderWorkspace**（Blender 生产）双根目录，支持项目关联、文件浏览、资产标记、预览与批量操作。
 
-> 生产流程与命名规范详见 [Asset_Pipeline_Standard.md](./Asset_Pipeline_Standard.md)。
+> 生产流程与命名规范详见 [Asset_Pipeline_Standard.md](./devplan/Asset_Pipeline_Standard.md)。
 
 ## 一键启动
 
@@ -120,6 +120,19 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 - **FBX**：Three.js 预览，默认正视图；自动播放内嵌动画；**多动画 FBX 可在工具栏切换 clip 播放**
 - **Blend**：提示在 `renders/` 查看渲染图
 
+### 骨骼实验室（角色生产侧）
+
+角色生产视图工具栏点击 **「骨骼实验室」** 打开原生绑定工作流：
+
+- 直接读取当前角色生产项目，不再依赖 ComfyUI 编排；执行入口在 Asset ManagerTools 后端
+- 概念侧标记为 **低模** 的模型可同步到生产项目 `Rigging/input/`
+- 绑定结果写入 `Rigging/output/`，任务状态写入 `Rigging/rigging_lab.json`
+- 结果预览支持 **骨架 / 关节 / 名称 / 透视** 显示，并可点击关节查看骨骼信息
+- 「清理缓存」只清理骨骼实验室任务状态与前端预览缓存，不删除已生成 FBX
+- 运行时说明：[devplan/RIGGING_PLATFORM_RUNTIME.md](./devplan/RIGGING_PLATFORM_RUNTIME.md)
+
+> 绑定能力基于 SkinTokens 项目与其开放工作流整合改造，详见文末来源说明。仓库只保存平台集成代码；Python 环境、Blender、模型权重位于本机 `runtime/rigging/`，不随 git 分发。
+
 ### 地形板块（`domain: terrain`）
 
 **轨道 A — 地形模型（已上线）**
@@ -127,12 +140,14 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 - 新建项目自动 `首字母大写` + `_Terrain` 后缀；Blender 轻量目录（无 `animations/mixamo`）
 - 生产侧可走 **Material Lab** 导出 Unity 包（与角色相同 Toon 管线）
 
-**轨道 B — Stage Lab（已上线 v1）**
+**轨道 B — 地形语义（已上线 v1）**
 
 - 可变比例 2.5D 舞台（16:9 / 1:1 / 2:1 / 3:1 / 4:1 / 自定义宽:高）+ S/M/L 像素层级自动换算
 - Semantic Control Map → BaseColor 提示词 → Image2 → TextureWiz（外部）
 - 开发说明：[devplan/AssetManagerTools_Terrain_StageLab_AICODING.md](./devplan/AssetManagerTools_Terrain_StageLab_AICODING.md)
 - 数据目录：`TerrainWorkspace/stages/<StageName>/`
+
+> UI 已改名为 **地形语义**；代码和历史数据中仍保留 `Stage` / `StageLab` 命名以兼容已创建项目。
 
 ### 材质实验室（Material Lab，生产侧）
 
@@ -166,16 +181,20 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
     ├── UnityAssets/             # Material Lab 导出的 Unity 就绪角色包
     │   ├── Editor/
     │   └── <项目名>/
-    ├── TerrainWorkspace/        # Stage Lab 舞台项目
+    ├── TerrainWorkspace/        # 地形语义项目（内部仍沿用 stages）
     │   └── stages/
     │       └── <StageName>/
     │           ├── .asset-manager/stage.json
     │           └── textures/
     ├── projects/
     │   └── <项目名>/
-    │       ├── textures/
-    │       │   └── source/      # 原始贴图（新建项目自动创建）
-    │       └── …
+│       ├── textures/
+│       │   └── source/      # 原始贴图（新建项目自动创建）
+│       ├── Rigging/
+│       │   ├── input/       # 骨骼实验室输入模型
+│       │   ├── output/      # 绑定结果 FBX
+│       │   └── rigging_lab.json
+│       └── …
     ├── assets/
     ├── docs/
     └── tools/
@@ -194,6 +213,7 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 | `<概念项目>/.asset-manager/concept_tags.json` | 概念资产标记 |
 | `<生产项目>/.asset-manager/blender_texture_tags.json` | 纹理贴图类型标记 |
 | `<生产项目>/.asset-manager/material_lab.json` | Material Lab 状态（生产侧） |
+| `<生产项目>/Rigging/rigging_lab.json` | 骨骼实验室任务状态与最近结果 |
 
 「保存」会刷盘以上全部 JSON，并对各项目同步标签与磁盘文件名。
 
@@ -231,6 +251,7 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 | POST | `/api/projects/:id/material-lab/merge-metallic-smoothness` | 合并 Metallic + Roughness |
 | POST | `/api/projects/:id/material-lab/check` | Unity 贴图规范检查 |
 | POST | `/api/projects/:id/material-lab/export-unity` | 导出 Unity 包（整角色资产） |
+| GET/POST | `/api/projects/:id/rigging/*` | 骨骼实验室：选择输入、检查服务、自动绑定、清理缓存 |
 | POST | `/api/images/resize` | 纹理尺寸转换 |
 | POST | `/api/images/mirror` | 概念图片镜像保存 |
 | POST | `/api/fs/*` | 重命名、删除、复制、移动、导入、图片分割等 |
@@ -249,8 +270,9 @@ Asset ManagerTools/
 ├── server/
 ├── client/
 ├── data/                    # 运行时 JSON（gitignore，各机器本地）
-├── AssetManagerTools_MaterialLab_AICODING.md
-├── Asset_Pipeline_Standard.md
+├── runtime/                 # 本机运行时（gitignore）：SkinTokens / Python / 模型权重
+├── devplan/
+├── devplan/AssetManagerTools_MaterialLab_AICODING.md
 └── README.md
 ```
 
@@ -260,3 +282,16 @@ Asset ManagerTools/
 
 - **后端**：Node.js、Express、sharp（图片分割 / 缩放 / 镜像）、multer（文件导入）
 - **前端**：React 18、Vite、@react-three/fiber、@react-three/drei
+
+## 开发者备注
+
+- 中文文档建议通过 `node scripts/read-utf8.mjs <file>` 读取，避免终端代码页导致中文树形图或说明文字乱码。
+- 文件树视觉已从 `DIR/FILE/IMG/3D` 文本标签改回图标式表达；后续优化应保持这种更直观的图标风格。
+
+## Rigging Attribution
+
+The character rigging module is integrated into Asset ManagerTools as a native platform workflow.
+
+The rig generation capability is based on and adapted from the SkinTokens project and its open rigging workflow. Asset ManagerTools reorganizes that capability into its own character production pipeline, including project-local input/output folders, production asset tags, job state, and skeleton-aware result preview.
+
+---

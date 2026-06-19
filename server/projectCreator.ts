@@ -10,10 +10,12 @@ const BLENDER_CHARACTER_DIRS = [
   "exports",
   "references",
   "renders",
+  "Rigging/input",
+  "Rigging/output",
+  "Rigging/jobs",
   "textures/source",
 ];
 
-/** 地形模型：无动画目录 */
 const BLENDER_TERRAIN_DIRS = ["backups", "exports", "references", "renders", "textures/source"];
 
 export async function createBlenderProject(
@@ -32,8 +34,8 @@ export async function createBlenderProject(
   const isTerrain = assetDomain === "terrain";
   const refFileName = isTerrain ? `Terrain_${projectName}.md` : `Toon_Shader_${projectName}.md`;
   const refContent = isTerrain
-    ? `# Terrain — ${projectName}\n\n记录该地形资产的制作说明。\n`
-    : `# Toon Shader — ${projectName}\n\n记录该角色的卡通 Shader 参数。\n`;
+    ? `# Terrain - ${projectName}\n\n记录该地形资产的制作说明。\n`
+    : `# Toon Shader - ${projectName}\n\n记录该角色的卡通 Shader 参数。\n`;
   const refDoc = path.join(projectRoot, "references", refFileName);
 
   try {

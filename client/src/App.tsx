@@ -4,16 +4,23 @@ import type {
   FileNode,
   ProjectLink,
   ProjectSide,
+  ProductionAssetRole,
   TextureMapType,
   TextureResizePreset,
   WorkspaceResponse,
 } from "./types";
-import { CONCEPT_ROLE_LABELS, TEXTURE_TYPE_LABELS } from "./types";
+import {
+  CONCEPT_ROLE_LABELS,
+  PRODUCTION_ASSET_LABELS,
+  PRODUCTION_ASSET_ROLES,
+  TEXTURE_TYPE_LABELS,
+} from "./types";
 import {
   createMasterWorkspace,
   createProject,
   deleteProject,
   fetchConceptTags,
+  fetchProductionAssetTags,
   fetchProjectAssets,
   fetchProjectTree,
   fetchShortcuts,
@@ -21,7 +28,9 @@ import {
   formatApiError,
   importFilesToDirectory,
   isImageFile,
+  isModelFile,
   markConceptAsset,
+  markProductionAsset,
   markTextureMap,
   mirrorImageFile,
   resizeTextureImage,
@@ -60,8 +69,10 @@ import { useFileManager } from "./hooks/useFileManager";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { copyPathToClipboard, resolveCopyPathTarget, resolveCurrentDirectoryPath } from "./lib/copyPath";
 import { clearThreeLoaderCache } from "./lib/threeCleanup";
+import { canMarkProductionAsset } from "./lib/productionAssetMarking";
 import { MaterialLabModal } from "./material-lab/MaterialLabModal";
 import { StageLabModal } from "./terrain/StageLabModal";
+import { RiggingLabModal } from "./rigging/RiggingLabModal";
 
 interface AppProps {
   workspace: WorkspaceResponse & { active: NonNullable<WorkspaceResponse["active"]> };
@@ -129,7 +140,9 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const [galleryCollapsed, setGalleryCollapsed] = useState(false);
   const [showMaterialLab, setShowMaterialLab] = useState(false);
   const [showStageLab, setShowStageLab] = useState(false);
+  const [showRiggingLab, setShowRiggingLab] = useState(false);
   const [conceptTags, setConceptTags] = useState<Record<string, ConceptAssetRole>>({});
+  const [productionAssetTags, setProductionAssetTags] = useState<Record<string, ProductionAssetRole>>({});
   const [textureTags, setTextureTags] = useState<Record<string, TextureMapType>>({});
   const [splitFile, setSplitFile] = useState<FileNode | null>(null);
   const [savingAll, setSavingAll] = useState(false);
@@ -146,8 +159,10 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const notifyRef = useRef<(text: string, type?: "info" | "error") => void>(() => {});
   const showMaterialLabRef = useRef(showMaterialLab);
   const showStageLabRef = useRef(showStageLab);
+  const showRiggingLabRef = useRef(showRiggingLab);
   showMaterialLabRef.current = showMaterialLab;
   showStageLabRef.current = showStageLab;
+  showRiggingLabRef.current = showRiggingLab;
 
   const projectBelongsToDomain = useCallback(
     (projectId: string, domain: AssetDomain) =>
@@ -160,10 +175,13 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const clearProjectView = useCallback(() => {
     setSelectedFile(null);
     setShowMaterialLab(false);
+    setShowStageLab(false);
+    setShowRiggingLab(false);
     setTree(null);
     setAssets([]);
     setProjectRoot(null);
     setConceptTags({});
+    setProductionAssetTags({});
     setTextureTags({});
     setProjectPathWarning(null);
     setViewProjectKey(null);
@@ -191,6 +209,12 @@ export default function App({ workspace, onRefresh }: AppProps) {
   }, [projects]);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
+
+  useEffect(() => {
+    if (side !== "rigging") return;
+    if (selectedProject && normalizeAssetDomain(selectedProject.domain) === "character") return;
+    setSide("blender");
+  }, [selectedProject, side]);
 
   useEffect(() => {
     if (isDebugMode()) {
@@ -275,17 +299,28 @@ export default function App({ workspace, onRefresh }: AppProps) {
             return;
           }
           setConceptTags(tagRes.tags);
+          setProductionAssetTags({});
           setTextureTags({});
           if (tagRes.warning) setProjectPathWarning(tagRes.warning);
-        } else {
-          const tagRes = await fetchTextureTags(projectId);
+        } else if (loadSide === "blender") {
+          const [tagRes, productionTagRes] = await Promise.all([
+            fetchTextureTags(projectId),
+            fetchProductionAssetTags(projectId),
+          ]);
           if (isStale()) {
             debugLog("project.load", "stale after texture tags", { projectId, generation });
             return;
           }
           setTextureTags(tagRes.tags);
+          setProductionAssetTags(productionTagRes.tags);
           setConceptTags({});
           if (tagRes.warning) setProjectPathWarning(tagRes.warning);
+        } else {
+          const productionTagRes = await fetchProductionAssetTags(projectId);
+          if (isStale()) return;
+          setConceptTags({});
+          setTextureTags({});
+          setProductionAssetTags(productionTagRes.tags);
         }
 
         setViewProjectKey(`${projectId}-${loadSide}`);
@@ -365,6 +400,8 @@ export default function App({ workspace, onRefresh }: AppProps) {
 
     setSelectedFile(null);
     setShowMaterialLab(false);
+    setShowStageLab(false);
+    setShowRiggingLab(false);
     setViewProjectKey(null);
     setLoadingProject(true);
 
@@ -400,14 +437,22 @@ export default function App({ workspace, onRefresh }: AppProps) {
       try {
         const result = await saveAllData();
         setLastSavedAt(new Date(result.savedAt));
-        if (!showMaterialLabRef.current && !showStageLabRef.current) {
+        if (!showMaterialLabRef.current && !showStageLabRef.current && !showRiggingLabRef.current) {
           if (side === "concept" && selectedProjectId) {
             const tagRes = await fetchConceptTags(selectedProjectId);
             setConceptTags(tagRes.tags);
           }
           if (side === "blender" && selectedProjectId) {
-            const tagRes = await fetchTextureTags(selectedProjectId);
+            const [tagRes, productionTagRes] = await Promise.all([
+              fetchTextureTags(selectedProjectId),
+              fetchProductionAssetTags(selectedProjectId),
+            ]);
             setTextureTags(tagRes.tags);
+            setProductionAssetTags(productionTagRes.tags);
+          }
+          if (side === "rigging" && selectedProjectId) {
+            const productionTagRes = await fetchProductionAssetTags(selectedProjectId);
+            setProductionAssetTags(productionTagRes.tags);
           }
         }
         if (!silent) {
@@ -427,7 +472,8 @@ export default function App({ workspace, onRefresh }: AppProps) {
   );
 
   useAutoSave(handleSaveAll, {
-    shouldSkip: () => showMaterialLabRef.current || showStageLabRef.current,
+    shouldSkip: () =>
+      showMaterialLabRef.current || showStageLabRef.current || showRiggingLabRef.current,
   });
 
   const handleMaterialLabNotify = useCallback((message: string, type?: "info" | "error") => {
@@ -445,9 +491,32 @@ export default function App({ workspace, onRefresh }: AppProps) {
         name: result.name,
         relativePath: result.relativePath,
       });
-      fileManager.notify(`已标记为${CONCEPT_ROLE_LABELS[role]}: ${result.name}`);
+      fileManager.notify(
+        result.rigInputRelativePath
+          ? `已标记为${CONCEPT_ROLE_LABELS[role]}，并同步到 ${result.rigInputRelativePath}`
+          : `已标记为${CONCEPT_ROLE_LABELS[role]}: ${result.name}`,
+      );
     } catch (error) {
       fileManager.notify(String(error), "error");
+    }
+  };
+
+  const handleMarkProductionAsset = async (node: FileNode, role: ProductionAssetRole) => {
+    if (!selectedProjectId) return;
+    try {
+      const result = await markProductionAsset(selectedProjectId, node.path, role);
+      await reloadProjectFiles();
+      const tagRes = await fetchProductionAssetTags(selectedProjectId);
+      setProductionAssetTags(tagRes.tags);
+      setSelectedFile({
+        ...node,
+        path: result.path,
+        name: result.name,
+        relativePath: result.relativePath,
+      });
+      fileManager.notify(`已标记生产资产: ${result.name}`);
+    } catch (error) {
+      fileManager.notify(formatApiError(error), "error");
     }
   };
 
@@ -553,6 +622,14 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const buildContextMenuItems = (node: FileNode | null) => {
     const isRoot = fileManager.isRootNode(node);
     const target = node;
+    const productionMarkItems =
+      target && (side === "blender" || side === "rigging") && isModelFile(target)
+        ? PRODUCTION_ASSET_ROLES.map((role) => ({
+            label: `标记为${PRODUCTION_ASSET_LABELS[role]}`,
+            disabled: !canMarkProductionAsset(target, role),
+            onClick: () => void handleMarkProductionAsset(target, role),
+          }))
+        : [];
 
     return [
       {
@@ -591,6 +668,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
         disabled: !fileManager.clipboard,
         onClick: () => void fileManager.handlePaste(),
       },
+      ...productionMarkItems,
       {
         label: "删除",
         shortcut: shortcuts.delete,
@@ -728,6 +806,14 @@ export default function App({ workspace, onRefresh }: AppProps) {
                   >
                     生产
                   </button>
+                  {normalizeAssetDomain(selectedProject.domain) === "character" && (
+                    <button
+                      className={side === "rigging" ? "active" : ""}
+                      onClick={() => setSide("rigging")}
+                    >
+                      骨骼
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -763,6 +849,10 @@ export default function App({ workspace, onRefresh }: AppProps) {
                 onOpenMaterialLab={() => setShowMaterialLab(true)}
                 showStageLab={side === "blender" && normalizeAssetDomain(selectedProject.domain) === "terrain"}
                 onOpenStageLab={() => setShowStageLab(true)}
+                showRiggingLab={
+                  side === "rigging" && normalizeAssetDomain(selectedProject.domain) === "character"
+                }
+                onOpenRiggingLab={() => setShowRiggingLab(true)}
               />
 
               <div className="content-area">
@@ -801,6 +891,9 @@ export default function App({ workspace, onRefresh }: AppProps) {
                           : null
                       }
                       conceptTags={side === "concept" ? conceptTags : undefined}
+                      productionAssetTags={
+                        side === "blender" || side === "rigging" ? productionAssetTags : undefined
+                      }
                       textureTags={side === "blender" ? textureTags : undefined}
                       onSelect={setSelectedFile}
                       onContextMenu={(e, node) => {
@@ -832,8 +925,12 @@ export default function App({ workspace, onRefresh }: AppProps) {
                           : null
                       }
                       conceptTags={side === "concept" ? conceptTags : undefined}
+                      productionAssetTags={
+                        side === "blender" || side === "rigging" ? productionAssetTags : undefined
+                      }
                       textureTags={side === "blender" ? textureTags : undefined}
                       markEnabled={side === "concept"}
+                      productionMarkEnabled={side === "blender" || side === "rigging"}
                       textureMarkEnabled={side === "blender"}
                       suspendThumbnails={
                         loadingProject ||
@@ -849,6 +946,9 @@ export default function App({ workspace, onRefresh }: AppProps) {
                         openBackgroundContextMenu(e, ".asset-card");
                       }}
                       onMarkAsset={(node, role) => void handleMarkAsset(node, role)}
+                      onMarkProductionAsset={(node, role) =>
+                        void handleMarkProductionAsset(node, role)
+                      }
                       onMarkTexture={(node, type) => void handleMarkTexture(node, type)}
                     />
                   )}
@@ -920,6 +1020,17 @@ export default function App({ workspace, onRefresh }: AppProps) {
           project={selectedProject}
           onClose={() => setShowStageLab(false)}
           onNotify={handleMaterialLabNotify}
+        />
+      )}
+
+      {showRiggingLab && selectedProject && side === "rigging" && (
+        <RiggingLabModal
+          project={selectedProject}
+          projectRoot={projectRoot}
+          selectedFile={selectedFile}
+          onClose={() => setShowRiggingLab(false)}
+          onNotify={handleMaterialLabNotify}
+          onRefreshProject={() => void reloadProjectFiles()}
         />
       )}
 

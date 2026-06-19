@@ -1,6 +1,8 @@
 node_modules/
 dist/
 data/
+runtime/
+client/tsconfig.tsbuildinfo
 *.log
 .DS_Store
 *.lnk

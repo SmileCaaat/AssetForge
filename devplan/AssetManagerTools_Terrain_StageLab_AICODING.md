@@ -1,24 +1,28 @@
-# AssetManagerTools Terrain：Stage Lab / Semantic Control Map Editor 开发说明
+# AssetManagerTools Terrain：地形语义 / Semantic Control Map Editor 开发说明
 
 仓库地址：<https://github.com/SmileCaaat/AssetManagerTools>
 
-本文件用于指导 AI Coding 工具在现有 `AssetManagerTools` 仓库中进行增量开发。目标是在 **既有「地形」资产大类（`domain: terrain`）** 下新增 **Stage Lab** 子模块，用于风格化 2.5D 舞台场景生产。
+本文件用于指导 AI Coding 工具在现有 `AssetManagerTools` 仓库中进行增量开发。目标是在 **既有「地形」资产大类（`domain: terrain`）** 下维护 **地形语义** 子模块，用于风格化 2.5D 场景的语义控制图生产。
 
 ```text
-Stage Lab / Semantic Control Map Editor
+地形语义 / Semantic Control Map Editor
 ```
 
 > **与仓库现状对齐（2026-06）**  
 > - 侧边栏 **地形** Tab 已存在（`AssetDomain = terrain`），与 **场景**（`scene`，灰色预留）分离。  
 > - 当前地形 **逻辑项目** = `ConceptWorkspace` + `BlenderWorkspace/projects/<Name>_Terrain` 双轨目录，面向 **单块地形 FBX 网格**（无 mixamo）。  
-> - **Stage Lab** 是地形大类下的 **第二条工作流**，面向 **可配置比例语义舞台**（默认 16:9）；**当前 UI 聚焦 SemanticControl + BaseColor**，Height/Normal/AO/Mask 由外部工具或磁盘文件承载，见下方「当前实现状态」。  
+> - UI 名称已改为 **地形语义**，因为它实际用于地形语义控制图，而不是舞台编辑器。代码、API、历史文件中仍保留 `Stage` / `StageLab` 命名以兼容已创建数据。
+> - **地形语义** 是地形大类下的 **第二条工作流**，面向 **可配置比例语义场景**（默认 16:9）；**当前 UI 聚焦 SemanticControl + BaseColor**，Height/Normal/AO/Mask 由外部工具或磁盘文件承载，见下方「当前实现状态」。
 > - 实现方式参考 **Material Lab**：生产视图工具栏入口 → 全屏 Modal，不重构 `App.tsx` 主骨架。
+> - 后续优化可改 UI 文案和交互，但不要一次性重命名内部 `Stage*` 类型、文件名和 API，避免破坏已有 `TerrainWorkspace/stages/*` 数据。
 
 ---
 
-## 当前实现状态（2026-06 · UI 精简深度 A + schema 收敛深度 B）
+## 当前实现状态（2026-06 · UI 精简深度 A + schema 收敛深度 B + 中文化）
 
 用户工作流：**画/生成语义图 → 出 BaseColor（语义约束）提示词 → Image2 → TextureWiz Wizard → Blender**。Height/Normal/AO **不经 Stage Lab UI**，磁盘上旧贴图可保留为 orphan 文件。
+
+当前 UI 入口、标题和主要按钮均已中文化为 **地形语义**；工具内部仍可用 `StageLabModal`、`stage.json`、`TerrainWorkspace/stages` 命名。
 
 ### UI 已精简（客户端 · 深度 A）
 
@@ -84,8 +88,8 @@ Stage Lab / Semantic Control Map Editor
 │   ├── 文件树 / 画廊 / FBX 预览
 │   └── Material Lab（地形 Toon + UnityAssets 包 · 已实现，见 MaterialLab devplan §阶段 E）
 │
-└── 轨道 B — Stage Lab（本文件，待开发）
-    ├── 入口：地形项目生产视图 →「Stage Lab」按钮
+└── 轨道 B — 地形语义（本文件，已上线）
+    ├── 入口：地形项目生产视图 →「地形语义」按钮
     ├── 数据根：TerrainWorkspace/stages/<StageName>/
     ├── 核心：Semantic Control Map 编辑 + Mask 派生 + 提示词
     └── 与轨道 A 共用同一 terrain 大类，但目录与 API 独立
@@ -99,7 +103,7 @@ Stage Lab / Semantic Control Map Editor
 | 根目录 | `BlenderWorkspace/projects/` | `TerrainWorkspace/stages/` |
 | 核心资产 | `SM_*_Terrain.fbx` + 贴图 | BaseColor / Height / SemanticControl + 派生 Mask |
 | 元数据 | `blender_texture_tags.json` | `.asset-manager/stage.json` |
-| 工具入口 | Material Lab | Stage Lab |
+| 工具入口 | Material Lab | 地形语义 |
 
 未来可在地形 Tab 侧边栏用 **子筛选**（全部 / 模型 / Stage）或 Stage 独立列表组件展示；v0.1 可先 **工具栏按钮 + Stage 列表 Modal**。
 

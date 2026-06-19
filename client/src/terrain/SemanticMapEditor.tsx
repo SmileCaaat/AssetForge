@@ -613,7 +613,7 @@ export function SemanticMapEditor({
     if (!ctx || !loaded || procRunning) return;
     if (recipe === "random_stage_layout") {
       const ok = window.confirm(
-        "随机舞台布局将覆盖当前语义图（道具锚点与战斗净区会保留）。确定继续？",
+        "随机地形语义布局将覆盖当前语义图（道具锚点与战斗净区会保留）。确定继续？",
       );
       if (!ok) return;
     }
@@ -707,7 +707,7 @@ export function SemanticMapEditor({
   return (
     <div className="semantic-map-editor material-lab-panel">
       <div className="semantic-editor-head">
-        <h4>Semantic Control Map</h4>
+        <h4>语义控制图</h4>
         <span className="muted">
           {iw}×{ih} · {dirty ? "未保存" : "已同步"} · 可选编辑层，非强制第一步
         </span>
@@ -796,7 +796,7 @@ export function SemanticMapEditor({
           disabled={saving || !loaded}
           onClick={() => void handleSave()}
         >
-          {saving ? "保存中…" : "保存 SemanticControl"}
+          {saving ? "保存中…" : "保存语义控制图"}
         </button>
       </div>
 

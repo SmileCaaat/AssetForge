@@ -54,7 +54,7 @@ export function normalizeAssetDomain(value: unknown): AssetDomain {
   return DEFAULT_ASSET_DOMAIN;
 }
 
-/** 旧版 session 里存的 scene 表示地形时代的大类 */
+/** Legacy session value: scene used to mean terrain in older builds. */
 export function migrateLegacySessionDomain(value: string | null): AssetDomain | null {
   if (!value) return null;
   if (value === "scene") return "terrain";

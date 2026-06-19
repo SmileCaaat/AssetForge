@@ -14,9 +14,9 @@ interface NewProjectModalProps {
 }
 
 const PLACEHOLDERS: Record<AssetDomain, string> = {
-  character: "例如: Stonemork（首字母将自动大写）",
-  terrain: "例如: ForestArena（将自动添加 _Terrain）",
-  scene: "例如: Dungeon01（完整场景，即将支持）",
+  character: "例如: Stonemork",
+  terrain: "例如: ForestArena",
+  scene: "例如: Dungeon01",
   prop: "例如: WoodenCrate",
   ui: "例如: MainMenu",
   vfx: "例如: FireBurst",
@@ -32,7 +32,6 @@ export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalPr
   const [error, setError] = useState<string | null>(null);
 
   const derived = useMemo(() => deriveProjectNames(projectName, domain), [projectName, domain]);
-
   const finalNames = customMode
     ? { displayName, conceptFolderName, blenderProjectName }
     : derived;
@@ -77,9 +76,9 @@ export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalPr
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>新建逻辑项目</h2>
+        <h2>新建项目</h2>
         <p className="modal-desc">
-          将在 ConceptWorkspace 和 BlenderWorkspace 同时创建目录并建立关联。概念侧为扁平目录（仅项目文件夹），生产侧按资产大类使用对应子结构。
+          将在 ConceptWorkspace 和 BlenderWorkspace 中创建关联目录，并按资产大类使用对应结构。
         </p>
         <div className="modal-domain-badge">资产大类：{ASSET_DOMAIN_LABELS[domain]}</div>
 
@@ -99,27 +98,25 @@ export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalPr
             <div className="name-preview-title">将创建以下目录</div>
             <div className="name-preview-row">
               <span>显示名称</span>
-              <code>{finalNames.displayName || "—"}</code>
+              <code>{finalNames.displayName || "-"}</code>
             </div>
             <div className="name-preview-row">
               <span>概念目录</span>
-              <code>ConceptWorkspace/{finalNames.conceptFolderName || "—"}</code>
+              <code>ConceptWorkspace/{finalNames.conceptFolderName || "-"}</code>
             </div>
             <div className="name-preview-row">
               <span>生产目录</span>
-              <code>
-                BlenderWorkspace/projects/{finalNames.blenderProjectName || "—"}
-              </code>
+              <code>BlenderWorkspace/projects/{finalNames.blenderProjectName || "-"}</code>
             </div>
             {domain === "terrain" && (
               <p className="muted name-preview-hint">
-                地形大类使用轻量模板，不含 animations/mixamo。
+                地形项目使用轻量模板，不创建 animations/mixamo。
               </p>
             )}
           </div>
 
           <button type="button" className="link-btn" onClick={toggleCustomMode}>
-            {customMode ? "使用统一命名" : "分别自定义各项名称"}
+            {customMode ? "使用统一命名" : "分别自定义名称"}
           </button>
 
           {customMode && (
@@ -133,7 +130,7 @@ export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalPr
                 />
               </label>
               <label>
-                概念文件夹名 (ConceptWorkspace)
+                概念文件夹名
                 <input
                   value={conceptFolderName}
                   onChange={(e) => setConceptFolderName(e.target.value)}
@@ -141,7 +138,7 @@ export function NewProjectModal({ domain, onClose, onCreate }: NewProjectModalPr
                 />
               </label>
               <label>
-                Blender 项目名 (projects/ 下)
+                Blender 项目名
                 <input
                   value={blenderProjectName}
                   onChange={(e) => setBlenderProjectName(e.target.value)}

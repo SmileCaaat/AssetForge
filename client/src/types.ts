@@ -120,6 +120,46 @@ export function textureTypeTagClass(): string {
   return "tag-texture-map";
 }
 
+export type ProductionAssetRole = "lowPoly" | "skeleton" | "smModel";
+
+export const PRODUCTION_ASSET_ROLES: ProductionAssetRole[] = [
+  "lowPoly",
+  "skeleton",
+  "smModel",
+];
+
+export const PRODUCTION_ASSET_LABELS: Record<ProductionAssetRole, string> = {
+  lowPoly: "低模",
+  skeleton: "骨骼",
+  smModel: "SM模型",
+};
+
+export const PRODUCTION_ASSET_HINTS: Record<ProductionAssetRole, string> = {
+  lowPoly: "可用于自动绑定的低模模型",
+  skeleton: "已绑定骨骼或骨架结果",
+  smModel: "Static Mesh / 引擎用静态模型",
+};
+
+export function productionAssetTagClass(role?: ProductionAssetRole): string {
+  if (role === "lowPoly") return "tag-low-poly";
+  if (role === "skeleton") return "tag-skeleton";
+  if (role === "smModel") return "tag-sm-model";
+  return "";
+}
+
+export interface ProductionAssetTagEntry {
+  role: ProductionAssetRole;
+  relativePath: string;
+  taggedAt: string;
+}
+
+export interface ProductionAssetTagsResponse {
+  tags: Record<string, ProductionAssetRole>;
+  entries: Record<string, ProductionAssetTagEntry>;
+  warning?: string;
+  missing?: boolean;
+}
+
 export interface ConceptTagEntry {
   role: ConceptAssetRole;
   relativePath: string;
@@ -170,7 +210,7 @@ export interface FileNode {
   modifiedAt?: string;
 }
 
-export type ProjectSide = "concept" | "blender";
+export type ProjectSide = "concept" | "blender" | "rigging";
 
 export type OpenFolderTarget = "root" | "concept" | "blender" | "terrain";
 

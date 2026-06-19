@@ -1,6 +1,16 @@
-import type { ConceptAssetRole, FileNode, TextureMapType } from "../types";
-import { ASSET_MARK_ROLES, CONCEPT_ROLE_LABELS, TEXTURE_MAP_TYPES, TEXTURE_TYPE_HINTS, TEXTURE_TYPE_LABELS } from "../types";
+import type { ConceptAssetRole, FileNode, ProductionAssetRole, TextureMapType } from "../types";
+import {
+  ASSET_MARK_ROLES,
+  CONCEPT_ROLE_LABELS,
+  PRODUCTION_ASSET_HINTS,
+  PRODUCTION_ASSET_LABELS,
+  PRODUCTION_ASSET_ROLES,
+  TEXTURE_MAP_TYPES,
+  TEXTURE_TYPE_HINTS,
+  TEXTURE_TYPE_LABELS,
+} from "../types";
 import { canMarkWithRole } from "../lib/assetMarking";
+import { canMarkProductionAsset } from "../lib/productionAssetMarking";
 import { canMarkTextureMap } from "../lib/textureMarking";
 import { AssetGallery } from "./AssetGallery";
 
@@ -10,8 +20,10 @@ interface AssetGalleryPanelProps {
   selectedPath?: string;
   cutPath?: string | null;
   conceptTags?: Record<string, ConceptAssetRole>;
+  productionAssetTags?: Record<string, ProductionAssetRole>;
   textureTags?: Record<string, TextureMapType>;
   markEnabled: boolean;
+  productionMarkEnabled: boolean;
   textureMarkEnabled: boolean;
   suspendThumbnails?: boolean;
   onHide: () => void;
@@ -19,6 +31,7 @@ interface AssetGalleryPanelProps {
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
   onBackgroundContextMenu: (e: React.MouseEvent) => void;
   onMarkAsset: (node: FileNode, role: ConceptAssetRole) => void;
+  onMarkProductionAsset: (node: FileNode, role: ProductionAssetRole) => void;
   onMarkTexture: (node: FileNode, type: TextureMapType) => void;
 }
 
@@ -28,8 +41,10 @@ export function AssetGalleryPanel({
   selectedPath,
   cutPath,
   conceptTags,
+  productionAssetTags,
   textureTags,
   markEnabled,
+  productionMarkEnabled,
   textureMarkEnabled,
   suspendThumbnails = false,
   onHide,
@@ -37,6 +52,7 @@ export function AssetGalleryPanel({
   onContextMenu,
   onBackgroundContextMenu,
   onMarkAsset,
+  onMarkProductionAsset,
   onMarkTexture,
 }: AssetGalleryPanelProps) {
   return (
@@ -82,6 +98,25 @@ export function AssetGalleryPanel({
               ))}
             </div>
           )}
+          {productionMarkEnabled && (
+            <div className="asset-mark-toolbar production-mark-toolbar">
+              {PRODUCTION_ASSET_ROLES.map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  className={`asset-mark-btn production-mark-btn production-mark-btn-${role}`}
+                  disabled={!selectedFile || !canMarkProductionAsset(selectedFile, role)}
+                  title={`标记为${PRODUCTION_ASSET_LABELS[role]}：${PRODUCTION_ASSET_HINTS[role]}`}
+                  onClick={() => {
+                    if (!selectedFile) return;
+                    onMarkProductionAsset(selectedFile, role);
+                  }}
+                >
+                  {PRODUCTION_ASSET_LABELS[role]}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <button type="button" className="panel-titlebar-btn" onClick={onHide} title="隐藏画廊">
           ✕
@@ -100,6 +135,7 @@ export function AssetGalleryPanel({
           cutPath={cutPath}
           suspendThumbnails={suspendThumbnails}
           conceptTags={conceptTags}
+          productionAssetTags={productionAssetTags}
           textureTags={textureTags}
           onSelect={onSelect}
           onContextMenu={onContextMenu}
