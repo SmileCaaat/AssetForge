@@ -44,7 +44,7 @@ goto failed
 :launch
 echo.
 echo ========================================
-echo   Asset Manager
+echo   AssetForge
 echo   Frontend: http://localhost:5173
 echo   API:      http://localhost:3456
 if defined DEBUG echo   Mode:     DEBUG

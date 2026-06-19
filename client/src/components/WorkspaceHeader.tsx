@@ -64,7 +64,7 @@ export function WorkspaceHeader({
       <div className="top-bar-row">
         <div className="top-bar-brand">
           <img className="brand-icon-img" src="/app-icon.png" alt="" width={28} height={28} />
-          <span className="brand-title">资产管理器</span>
+          <span className="brand-title">AssetForge</span>
         </div>
 
         <div className="top-bar-divider" />

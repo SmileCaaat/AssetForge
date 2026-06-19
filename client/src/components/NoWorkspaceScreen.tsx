@@ -37,7 +37,7 @@ export function NoWorkspaceScreen({ onReady }: NoWorkspaceScreenProps) {
   return (
     <div className="loading-screen no-workspace-screen">
       <img className="brand-icon-img" src="/app-icon.png" alt="" width={48} height={48} />
-      <h1>资产管理器</h1>
+      <h1>AssetForge · 资产锻造坊</h1>
       <p>尚未注册总工作区。请打开已有目录，或新建空白工作区。</p>
       <p className="muted">不再使用内置「默认工作区」；路径由你本机配置。</p>
       {error && <p className="form-error">{error}</p>}

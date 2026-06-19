@@ -147,7 +147,7 @@ node scripts/read-utf8.mjs devplan/Asset_Pipeline_Standard.md
   - 新增 `Rigging/input`、`Rigging/output`、`rigging_lab.json`
   - 新增骨骼实验室输出命名
   - 新增生产资产标记扩展
-- `devplan/AssetManagerTools_Terrain_StageLab_AICODING.md`
+- `devplan/AssetForge_Terrain_StageLab_AICODING.md`
   - 补充“地形语义”当前 UI 命名与内部 Stage 兼容规则
 
 ## 8. 给后续代理的注意事项

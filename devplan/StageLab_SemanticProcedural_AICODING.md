@@ -111,7 +111,7 @@ TerrainWorkspace/stages/<Stage>/textures/
 | **P1** | `client/src/styles.css` | 搜索 `.semantic-procedural`、`.semantic-proc-progress` |
 | **P2** | `client/src/terrain/StageLabModal.tsx` | Stage Lab 壳层，嵌入 `SemanticMapEditor` |
 | **P2** | `server/templates/terrain/semantic_palette.json` | 服务端调色板模板（新建 Stage 时复制） |
-| **P2** | `devplan/AssetManagerTools_Terrain_StageLab_AICODING.md` | Stage Lab 整体产品/阶段规划（§十八 图像处理、阶段 D Mask） |
+| **P2** | `devplan/AssetForge_Terrain_StageLab_AICODING.md` | Stage Lab 整体产品/阶段规划（§十八 图像处理、阶段 D Mask） |
 
 **不要改动的边界（除非用户明确要求）：**
 
@@ -423,7 +423,7 @@ npm run build        # 必须通过
 
 必读：
 - devplan/StageLab_SemanticProcedural_AICODING.md（含 §〇 生产管线、§0.4b UI 精简状态）
-- devplan/AssetManagerTools_Terrain_StageLab_AICODING.md（§当前实现状态）
+- devplan/AssetForge_Terrain_StageLab_AICODING.md（§当前实现状态）
 - client/src/terrain/semanticProcedural.ts
 - client/src/terrain/SemanticMapEditor.tsx
 - client/src/terrain/stagePrompts.ts（UI 仅 semantic_to_basecolor 一种）

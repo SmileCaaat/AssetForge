@@ -56,7 +56,7 @@ export function StageTexturePanel({
         ) : (
           <code>stage-lab/&lt;Stage&gt;/textures/</code>
         )}
-        ，可在资产管理器文件树中查看。
+        ，可在 AssetForge 文件树中查看。
       </p>
       <input
         ref={inputRef}

@@ -55,7 +55,7 @@ if (-not $hasRootDeps) {
 
 Write-Host ""
 Write-Host "========================================"
-Write-Host "  资产管理器 启动中..."
+Write-Host "  AssetForge 资产锻造坊 启动中..."
 Write-Host "  前端: http://localhost:5173"
 Write-Host "  API:  http://localhost:3456"
 if ($debugOn) {
