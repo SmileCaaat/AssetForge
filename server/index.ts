@@ -73,7 +73,7 @@ import {
   getAllAllowedRoots,
   resolveOpenFolderPath,
 } from "./workspacePaths.js";
-import { splitImageGrid } from "./imageSplit.js";
+import { splitImageGrid, splitImageRegions } from "./imageSplit.js";
 import { pickFolder } from "./folderPicker.js";
 import { resolvePickerTokenPath } from "./pickerToken.js";
 import { importFilesToDirectory } from "./importFiles.js";
@@ -859,12 +859,13 @@ app.post("/api/fs/mkdir", async (req, res) => {
 
 app.post("/api/fs/split-image", async (req, res) => {
   try {
-    const { filePath, rows, cols, rowSplits, colSplits, folderName } = req.body as {
+    const { filePath, rows, cols, rowSplits, colSplits, selected, folderName } = req.body as {
       filePath: string;
       rows: number;
       cols: number;
       rowSplits: number[];
       colSplits: number[];
+      selected?: number[];
       folderName?: string;
     };
 
@@ -880,6 +881,33 @@ app.post("/api/fs/split-image", async (req, res) => {
       cols: Number(cols),
       rowSplits,
       colSplits,
+      selected,
+      folderName,
+      allowedRoots: getAllowedRoots(state),
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: String(error) });
+  }
+});
+
+app.post("/api/fs/split-regions", async (req, res) => {
+  try {
+    const { filePath, regions, folderName } = req.body as {
+      filePath: string;
+      regions: { x: number; y: number; w: number; h: number }[];
+      folderName?: string;
+    };
+
+    if (!filePath) {
+      res.status(400).json({ error: "filePath is required" });
+      return;
+    }
+
+    const state = await loadConfig();
+    const result = await splitImageRegions({
+      imagePath: filePath,
+      regions,
       folderName,
       allowedRoots: getAllowedRoots(state),
     });

@@ -2252,6 +2252,110 @@ code {
   background: rgba(0, 0, 0, 0.55);
   border-radius: 4px;
   pointer-events: none;
+  z-index: 3;
+}
+
+.split-cell-label.off {
+  background: rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Selectable grid cells */
+.split-cell {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 1;
+  transition: background 0.12s ease;
+}
+
+.split-cell:hover {
+  background: rgba(74, 158, 255, 0.12);
+}
+
+.split-cell.off {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.split-cell.off:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Free-draw overlay & crop boxes */
+.free-overlay {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.crop-box {
+  position: absolute;
+  border: 2px solid #4a9eff;
+  background: rgba(74, 158, 255, 0.12);
+  pointer-events: auto;
+  cursor: move;
+  z-index: 2;
+}
+
+.crop-box.active {
+  border-color: var(--accent, #4a9eff);
+  background: rgba(74, 158, 255, 0.2);
+  box-shadow: 0 0 0 1px rgba(74, 158, 255, 0.5);
+}
+
+.crop-box.draft {
+  pointer-events: none;
+  border-style: dashed;
+  background: rgba(74, 158, 255, 0.08);
+}
+
+.crop-box-label {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(74, 158, 255, 0.9);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.crop-box-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.crop-box-del:hover {
+  background: #e55;
+}
+
+.crop-box-handle {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: #4a9eff;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  cursor: nwse-resize;
 }
 
 .image-split-sidebar {
@@ -2266,6 +2370,59 @@ code {
 .image-split-sidebar h3 {
   margin: 0;
   font-size: 0.92rem;
+}
+
+.split-mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.split-mode-tab {
+  flex: 1;
+  padding: 7px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.split-mode-tab.active {
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.split-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.split-link-btn {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.split-link-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.split-selection-hint {
+  margin: 0;
+  font-size: 0.75rem;
 }
 
 .split-section-label {

@@ -359,9 +359,22 @@ export function fsSplitImage(input: {
   cols: number;
   rowSplits: number[];
   colSplits: number[];
+  selected?: number[];
   folderName?: string;
 }) {
   return request<{ outputDir: string; files: string[] }>("/api/fs/split-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export function fsSplitImageRegions(input: {
+  filePath: string;
+  regions: { x: number; y: number; w: number; h: number }[];
+  folderName?: string;
+}) {
+  return request<{ outputDir: string; files: string[] }>("/api/fs/split-regions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
