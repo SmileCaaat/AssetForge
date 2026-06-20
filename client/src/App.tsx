@@ -55,6 +55,7 @@ import { OpenMasterWorkspaceModal } from "./components/OpenMasterWorkspaceModal"
 import { DeleteProjectModal } from "./components/DeleteProjectModal";
 import { PreviewPanel } from "./components/PreviewPanel";
 import { ImageSplitModal } from "./components/ImageSplitModal";
+import { ImageUpscaleModal } from "./components/ImageUpscaleModal";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { FileToolbar } from "./components/FileToolbar";
@@ -145,6 +146,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const [productionAssetTags, setProductionAssetTags] = useState<Record<string, ProductionAssetRole>>({});
   const [textureTags, setTextureTags] = useState<Record<string, TextureMapType>>({});
   const [splitFile, setSplitFile] = useState<FileNode | null>(null);
+  const [upscaleFile, setUpscaleFile] = useState<FileNode | null>(null);
   const [savingAll, setSavingAll] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [projectPathWarning, setProjectPathWarning] = useState<string | null>(null);
@@ -979,6 +981,11 @@ export default function App({ workspace, onRefresh }: AppProps) {
                           ? setSplitFile
                           : undefined
                       }
+                      onUpscaleImage={
+                        side === "concept" && selectedFile && isImageFile(selectedFile)
+                          ? setUpscaleFile
+                          : undefined
+                      }
                       onMirrorImage={
                         side === "concept" && selectedFile && isImageFile(selectedFile)
                           ? (node, horizontal, vertical) =>
@@ -1105,6 +1112,17 @@ export default function App({ workspace, onRefresh }: AppProps) {
           onExported={async () => {
             await reloadProjectFiles();
             setSplitFile(null);
+          }}
+        />
+      )}
+
+      {upscaleFile && (
+        <ImageUpscaleModal
+          file={upscaleFile}
+          onClose={() => setUpscaleFile(null)}
+          onExported={async () => {
+            await reloadProjectFiles();
+            setUpscaleFile(null);
           }}
         />
       )}

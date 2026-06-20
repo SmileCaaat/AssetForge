@@ -12,6 +12,7 @@ interface PreviewPanelProps {
   previewKey?: string;
   suspendModelPreview?: boolean;
   onSplitImage?: (file: FileNode) => void;
+  onUpscaleImage?: (file: FileNode) => void;
   onMirrorImage?: (
     file: FileNode,
     horizontal: boolean,
@@ -27,6 +28,7 @@ export function PreviewPanel({
   previewKey,
   suspendModelPreview = false,
   onSplitImage,
+  onUpscaleImage,
   onMirrorImage,
   onResizeTexture,
 }: PreviewPanelProps) {
@@ -149,6 +151,15 @@ export function PreviewPanel({
                 onClick={() => onSplitImage(file)}
               >
                 图片分割
+              </button>
+            )}
+            {side === "concept" && isImageFile(file) && onUpscaleImage && (
+              <button
+                type="button"
+                className="preview-action-btn"
+                onClick={() => onUpscaleImage(file)}
+              >
+                高清化
               </button>
             )}
             {isModelFile(file) && file.extension === ".fbx" && (

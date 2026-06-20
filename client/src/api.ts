@@ -232,6 +232,30 @@ export function mirrorImageFile(
   });
 }
 
+export interface UpscaleStatus {
+  available: boolean;
+  exePath: string | null;
+  modelsDir: string | null;
+  models: string[];
+  runtimeRoot: string;
+}
+
+export function getUpscaleStatus(): Promise<UpscaleStatus> {
+  return request<UpscaleStatus>("/api/images/upscale/status");
+}
+
+export function upscaleImage(
+  filePath: string,
+  scale: number,
+  model?: string,
+): Promise<{ path: string; width: number; height: number; fileSize: number }> {
+  return request("/api/images/upscale", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: filePath, scale, model }),
+  });
+}
+
 export function isImageFile(node: FileNode): boolean {
   return [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"].includes(node.extension || "");
 }

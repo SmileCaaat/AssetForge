@@ -74,6 +74,7 @@ import {
   resolveOpenFolderPath,
 } from "./workspacePaths.js";
 import { splitImageGrid, splitImageRegions } from "./imageSplit.js";
+import { getUpscaleStatus, upscaleImage, UPSCALE_SCALES } from "./imageUpscale.js";
 import { pickFolder } from "./folderPicker.js";
 import { resolvePickerTokenPath } from "./pickerToken.js";
 import { importFilesToDirectory } from "./importFiles.js";
@@ -774,6 +775,43 @@ app.post("/api/images/mirror", async (req, res) => {
       imagePath,
       horizontal: Boolean(horizontal),
       vertical: Boolean(vertical),
+      allowedRoots: getAllowedRoots(state),
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: String(error) });
+  }
+});
+
+app.get("/api/images/upscale/status", (_req, res) => {
+  try {
+    res.json(getUpscaleStatus());
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+app.post("/api/images/upscale", async (req, res) => {
+  try {
+    const { path: imagePath, scale, model } = req.body as {
+      path: string;
+      scale: number;
+      model?: string;
+    };
+    if (!imagePath) {
+      res.status(400).json({ error: "path is required" });
+      return;
+    }
+    if (!UPSCALE_SCALES.includes(scale as (typeof UPSCALE_SCALES)[number])) {
+      res.status(400).json({ error: "Invalid scale (must be 2, 3 or 4)" });
+      return;
+    }
+
+    const state = await loadConfig();
+    const result = await upscaleImage({
+      imagePath,
+      scale: scale as (typeof UPSCALE_SCALES)[number],
+      model,
       allowedRoots: getAllowedRoots(state),
     });
     res.json(result);
