@@ -47,6 +47,14 @@ function findModelsDir(): string | null {
   return anyParam ? path.dirname(anyParam) : null;
 }
 
+// realesrgan-ncnn-vulkan's -s must equal the model's NATIVE scale, otherwise the
+// output buffer / tiling math is wrong and the image comes out sliced & shifted.
+// Derive native scale from the model id (x4plus -> 4, animevideov3-x2 -> 2, ...).
+export function modelNativeScale(model: string): number {
+  const m = model.match(/x([234])/i);
+  return m ? Number(m[1]) : 4;
+}
+
 // Prefer the x4plus-anime model (= RealESRGAN_x4plus_anime_6B) for stylized concept art.
 export function pickDefaultModel(models: string[]): string {
   return (
@@ -135,10 +143,15 @@ export async function upscaleImage(input: UpscaleInput): Promise<UpscaleResult> 
   const base = path.basename(resolved, path.extname(resolved));
   const outPath = path.join(dir, `${base}_HD.png`);
 
+  // Always run the engine at the model's native scale, then resample to the
+  // requested scale below. Mismatched -s produces corrupted (sliced) output.
+  const nativeScale = modelNativeScale(model);
+  const inputMeta = await sharp(resolved).metadata();
+
   const args = [
     "-i", resolved,
     "-o", outPath,
-    "-s", String(scale),
+    "-s", String(nativeScale),
     "-n", model,
     "-f", "png",
   ];
@@ -147,6 +160,17 @@ export async function upscaleImage(input: UpscaleInput): Promise<UpscaleResult> 
 
   if (!fs.existsSync(outPath)) {
     throw new Error("高清化失败：引擎未生成输出文件，请检查模型与显卡驱动。");
+  }
+
+  // Resample to the user-requested scale when it differs from the model's native scale.
+  if (scale !== nativeScale && inputMeta.width && inputMeta.height) {
+    const targetW = Math.round(inputMeta.width * scale);
+    const targetH = Math.round(inputMeta.height * scale);
+    const buf = await sharp(outPath)
+      .resize(targetW, targetH, { fit: "fill", kernel: "lanczos3" })
+      .png()
+      .toBuffer();
+    await fsp.writeFile(outPath, buf);
   }
 
   const meta = await sharp(outPath).metadata();
