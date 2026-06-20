@@ -783,6 +783,25 @@ app.post("/api/images/mirror", async (req, res) => {
   }
 });
 
+app.post("/api/images/save", async (req, res) => {
+  try {
+    const { path: filePath, dataBase64 } = req.body as { path: string; dataBase64: string };
+    if (!filePath || !dataBase64) {
+      res.status(400).json({ error: "path and dataBase64 are required" });
+      return;
+    }
+    const state = await loadConfig();
+    const resolved = assertWithinRoots(filePath, getAllowedRoots(state));
+    const base = dataBase64.replace(/^data:image\/\w+;base64,/, "");
+    await fs.promises.mkdir(path.dirname(resolved), { recursive: true });
+    await fs.promises.writeFile(resolved, Buffer.from(base, "base64"));
+    const stat = await fs.promises.stat(resolved);
+    res.json({ path: resolved, fileSize: stat.size });
+  } catch (error) {
+    res.status(400).json({ error: String(error) });
+  }
+});
+
 app.get("/api/images/upscale/status", (_req, res) => {
   try {
     res.json(getUpscaleStatus());

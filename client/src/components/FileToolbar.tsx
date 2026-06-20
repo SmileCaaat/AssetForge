@@ -20,6 +20,8 @@ interface FileToolbarProps {
   onToggleGallery?: () => void;
   showMaterialLab?: boolean;
   onOpenMaterialLab?: () => void;
+  showTextureProjection?: boolean;
+  onOpenTextureProjection?: () => void;
   showStageLab?: boolean;
   onOpenStageLab?: () => void;
   showRiggingLab?: boolean;
@@ -45,6 +47,8 @@ export function FileToolbar({
   onToggleGallery,
   showMaterialLab = false,
   onOpenMaterialLab,
+  showTextureProjection = false,
+  onOpenTextureProjection,
   showStageLab = false,
   onOpenStageLab,
   showRiggingLab = false,
@@ -129,6 +133,14 @@ export function FileToolbar({
           <span className="toolbar-sep" />
           <button type="button" onClick={onOpenMaterialLab} title="打开材质实验室（仅生产项目）">
             材质实验室
+          </button>
+        </>
+      )}
+      {showTextureProjection && onOpenTextureProjection && (
+        <>
+          <span className="toolbar-sep" />
+          <button type="button" onClick={onOpenTextureProjection} title="多视图投影烘焙到 UV（仅生产项目）">
+            纹理投影
           </button>
         </>
       )}

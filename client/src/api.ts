@@ -232,6 +232,17 @@ export function mirrorImageFile(
   });
 }
 
+export function saveImageBase64(
+  filePath: string,
+  dataBase64: string,
+): Promise<{ path: string; fileSize: number }> {
+  return request("/api/images/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: filePath, dataBase64 }),
+  });
+}
+
 export interface UpscaleStatus {
   available: boolean;
   exePath: string | null;

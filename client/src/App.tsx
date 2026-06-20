@@ -72,6 +72,7 @@ import { copyPathToClipboard, resolveCopyPathTarget, resolveCurrentDirectoryPath
 import { clearThreeLoaderCache } from "./lib/threeCleanup";
 import { canMarkProductionAsset } from "./lib/productionAssetMarking";
 import { MaterialLabModal } from "./material-lab/MaterialLabModal";
+import { TextureProjectionModal } from "./texture-projection/TextureProjectionModal";
 import { StageLabModal } from "./terrain/StageLabModal";
 import { RiggingLabModal } from "./rigging/RiggingLabModal";
 
@@ -140,6 +141,7 @@ export default function App({ workspace, onRefresh }: AppProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [galleryCollapsed, setGalleryCollapsed] = useState(false);
   const [showMaterialLab, setShowMaterialLab] = useState(false);
+  const [showTextureProjection, setShowTextureProjection] = useState(false);
   const [showStageLab, setShowStageLab] = useState(false);
   const [showRiggingLab, setShowRiggingLab] = useState(false);
   const [conceptTags, setConceptTags] = useState<Record<string, ConceptAssetRole>>({});
@@ -849,6 +851,10 @@ export default function App({ workspace, onRefresh }: AppProps) {
                 onToggleGallery={() => setGalleryCollapsed((v) => !v)}
                 showMaterialLab={side === "blender"}
                 onOpenMaterialLab={() => setShowMaterialLab(true)}
+                showTextureProjection={
+                  side === "blender" && normalizeAssetDomain(selectedProject.domain) === "character"
+                }
+                onOpenTextureProjection={() => setShowTextureProjection(true)}
                 showStageLab={side === "blender" && normalizeAssetDomain(selectedProject.domain) === "terrain"}
                 onOpenStageLab={() => setShowStageLab(true)}
                 showRiggingLab={
@@ -1048,6 +1054,17 @@ export default function App({ workspace, onRefresh }: AppProps) {
           onClose={() => setShowMaterialLab(false)}
           onNotify={handleMaterialLabNotify}
           onRefreshProject={() => void reloadProjectFiles()}
+        />
+      )}
+
+      {showTextureProjection && selectedProject && side === "blender" && (
+        <TextureProjectionModal
+          project={selectedProject}
+          onClose={() => setShowTextureProjection(false)}
+          onExported={async () => {
+            await reloadProjectFiles();
+            setShowTextureProjection(false);
+          }}
         />
       )}
 
