@@ -120,30 +120,34 @@ export function textureTypeTagClass(): string {
   return "tag-texture-map";
 }
 
-export type ProductionAssetRole = "lowPoly" | "skeleton" | "smModel";
+export type ProductionAssetRole = "lowPoly" | "skeleton" | "smModel" | "blendProject";
 
 export const PRODUCTION_ASSET_ROLES: ProductionAssetRole[] = [
   "lowPoly",
   "skeleton",
   "smModel",
+  "blendProject",
 ];
 
 export const PRODUCTION_ASSET_LABELS: Record<ProductionAssetRole, string> = {
   lowPoly: "低模",
   skeleton: "骨骼",
   smModel: "SM模型",
+  blendProject: "工程",
 };
 
 export const PRODUCTION_ASSET_HINTS: Record<ProductionAssetRole, string> = {
   lowPoly: "可用于自动绑定的低模模型",
   skeleton: "已绑定骨骼或骨架结果",
   smModel: "Static Mesh / 引擎用静态模型",
+  blendProject: "Blender 工程文件，重命名为项目名.blend",
 };
 
 export function productionAssetTagClass(role?: ProductionAssetRole): string {
   if (role === "lowPoly") return "tag-low-poly";
   if (role === "skeleton") return "tag-skeleton";
   if (role === "smModel") return "tag-sm-model";
+  if (role === "blendProject") return "tag-blend-project";
   return "";
 }
 

@@ -1,9 +1,9 @@
 import fs from "fs/promises";
 import path from "path";
 import { renamePath } from "./fileOperations.js";
-import { isPreviewableModel } from "./scanner.js";
+import { isPreviewableModel, isBlendFile } from "./scanner.js";
 
-export const PRODUCTION_ASSET_ROLES = ["lowPoly", "skeleton", "smModel"] as const;
+export const PRODUCTION_ASSET_ROLES = ["lowPoly", "skeleton", "smModel", "blendProject"] as const;
 
 export type ProductionAssetRole = (typeof PRODUCTION_ASSET_ROLES)[number];
 
@@ -91,7 +91,9 @@ function buildProductionAssetName(
       ? `${prefix}_Low`
       : role === "skeleton"
         ? `${prefix}_Skeleton`
-        : `SM_${prefix}`;
+        : role === "blendProject"
+          ? prefix
+          : `SM_${prefix}`;
   const primary = `${stem}${ext}`;
   if (!existingNames.has(primary)) return primary;
 
@@ -141,7 +143,11 @@ export async function markProductionAsset(input: {
 
   const resolved = path.resolve(filePath);
   const basename = path.basename(resolved);
-  if (!isPreviewableModel(basename)) {
+  if (role === "blendProject") {
+    if (!isBlendFile(basename)) {
+      throw new Error("Only .blend files can be marked as the Blender project");
+    }
+  } else if (!isPreviewableModel(basename)) {
     throw new Error("Only 3D model files can be marked as production assets");
   }
 
