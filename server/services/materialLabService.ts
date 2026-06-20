@@ -235,6 +235,20 @@ export async function loadMaterialLabState(
     if (isTerrain) {
       state.unity.shaderName = "AssetManagerTools/ToonTerrainURP";
     }
+
+    // Self-heal a stale preview model path (e.g. the FBX was renamed/typo'd on disk).
+    if (state.preview.modelPath && !(await fileExists(projectRoot, state.preview.modelPath))) {
+      if (defaults.preview.modelPath) {
+        warnings.push(
+          `预览模型「${state.preview.modelPath}」不存在，已自动改用「${defaults.preview.modelPath}」。`,
+        );
+        state.preview.modelPath = defaults.preview.modelPath;
+      } else {
+        warnings.push(`预览模型「${state.preview.modelPath}」不存在，且未找到可用的 exports FBX，已回退默认球体。`);
+        state.preview.modelPath = "";
+      }
+    }
+
     return { state, created: false, warnings };
   } catch {
     const state = await buildDefaultMaterialLabState(projectRoot, project);

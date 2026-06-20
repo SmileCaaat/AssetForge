@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo } from "react";
+import { Component, Suspense, useEffect, useMemo, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Center, useFBX } from "@react-three/drei";
 import { SkeletonUtils } from "three-stdlib";
@@ -362,6 +362,29 @@ function FbxPreview({
   );
 }
 
+// Falls back to `fallback` if the FBX fails to load (e.g. file missing / 404),
+// so a stale model path degrades to the sphere instead of crashing the canvas.
+class ModelErrorBoundary extends Component<
+  { resetKey: string; fallback: ReactNode; children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidUpdate(prev: { resetKey: string }) {
+    if (prev.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
+  }
+}
+
 function ToonMesh({
   modelUrl,
   baseColorUrl,
@@ -382,15 +405,25 @@ function ToonMesh({
   const outlineMaterial = useOutlineMaterial(params);
   const isTerrain = isTerrainMaterialLab({ shaderType });
 
+  const sphere = (
+    <SpherePreview
+      toonMaterial={toonMaterial}
+      outlineMaterial={outlineMaterial}
+      outlineEnabled={!isTerrain && params.outlineEnabled}
+    />
+  );
+
   if (modelUrl) {
     return (
       <>
-        <FbxPreview
-          modelUrl={modelUrl}
-          toonMaterial={toonMaterial}
-          outlineMaterial={outlineMaterial}
-          outlineEnabled={!isTerrain && params.outlineEnabled}
-        />
+        <ModelErrorBoundary resetKey={modelUrl} fallback={sphere}>
+          <FbxPreview
+            modelUrl={modelUrl}
+            toonMaterial={toonMaterial}
+            outlineMaterial={outlineMaterial}
+            outlineEnabled={!isTerrain && params.outlineEnabled}
+          />
+        </ModelErrorBoundary>
         <MaterialPreviewLightRig material={toonMaterial} lightSettings={lightSettings} />
       </>
     );
@@ -398,11 +431,7 @@ function ToonMesh({
 
   return (
     <>
-      <SpherePreview
-        toonMaterial={toonMaterial}
-        outlineMaterial={outlineMaterial}
-        outlineEnabled={!isTerrain && params.outlineEnabled}
-      />
+      {sphere}
       <MaterialPreviewLightRig material={toonMaterial} lightSettings={lightSettings} />
     </>
   );
