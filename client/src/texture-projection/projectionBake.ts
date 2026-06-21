@@ -8,6 +8,10 @@ import * as THREE from "three";
 // the samples weighted by how directly the surface faces each camera.
 //
 // No AI, no external services — runs entirely in the browser via Three.js.
+//
+// ⚠️  注意：此功能不适合作为人物模型贴图制作。
+//    人物角色的头发、睫毛等前景遮挡物会干扰深度测试，导致脸部等关键区域无法正确投影。
+//    是否适合规则多边形道具（建筑、武器、载具等）使用，有待进一步测试。
 
 export const PROJECTION_DIRECTIONS = [
   "front",
@@ -248,8 +252,6 @@ export interface BakeResult {
   depthPreviews: Partial<Record<ProjectionDirection, HTMLCanvasElement>>;
 }
 
-const DEPTH_SIZE = 1024;
-
 function rtToGrayCanvas(renderer: THREE.WebGLRenderer, rt: THREE.WebGLRenderTarget): HTMLCanvasElement {
   const s = rt.width;
   const buf = new Uint8Array(s * s * 4);
@@ -307,7 +309,8 @@ export function bakeProjection(opts: BakeOptions): BakeResult {
   for (let i = 0; i < MAX_VIEWS; i++) {
     const v = views[i];
     if (opts.occlusion && v && v.enabled && v.texture) {
-      const rt = new THREE.WebGLRenderTarget(DEPTH_SIZE, DEPTH_SIZE, {
+      // Match the bake output resolution so depth precision equals bake precision.
+      const rt = new THREE.WebGLRenderTarget(size, size, {
         minFilter: THREE.NearestFilter,
         magFilter: THREE.NearestFilter,
         format: THREE.RGBAFormat,

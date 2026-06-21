@@ -416,3 +416,31 @@ export function fsSplitImageRegions(input: {
     body: JSON.stringify(input),
   });
 }
+
+// ── ComfyUI integration ──────────────────────────────────────────────────────
+
+export function comfyuiStatus(): Promise<{ running: boolean }> {
+  return request<{ running: boolean }>("/api/comfyui/status");
+}
+
+export interface ComfyuiRefineOpts {
+  imageBase64: string;
+  prompt: string;
+  negPrompt: string;
+  denoise?: number;
+  seed?: number;
+  steps?: number;
+  cfg?: number;
+  width?: number;
+  height?: number;
+  checkpoint?: string;
+}
+
+export function comfyuiRefine(opts: ComfyuiRefineOpts): Promise<{ imageBase64: string }> {
+  return request<{ imageBase64: string }>("/api/comfyui/refine", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(opts),
+  });
+}
+

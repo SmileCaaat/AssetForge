@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { FBXLoader } from "three-stdlib";
 import { ProjectionViewer } from "./ProjectionViewer";
 import type { FileNode, ProjectLink } from "../types";
-import { fetchProjectAssets, fileUrl, isImageFile, isModelFile, saveImageBase64 } from "../api";
+import { fetchProjectAssets, fileUrl, isImageFile, isModelFile, saveImageBase64, comfyuiStatus, comfyuiRefine } from "../api";
 import {
   PROJECTION_DIRECTIONS,
   DIRECTION_LABELS,
@@ -80,6 +80,24 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ── AI精修 state（localStorage 持久化）────────────────────────────────────
+  const [aiPrompt, setAiPrompt] = useState(
+    () => localStorage.getItem("assetforge.aiRefine.prompt") ?? "1girl, anime style, high quality, detailed texture, soft lighting",
+  );
+  const [aiNegPrompt, setAiNegPrompt] = useState(
+    () => localStorage.getItem("assetforge.aiRefine.negPrompt") ?? "blurry, low quality, deformed, watermark, nsfw",
+  );
+  const [aiDenoise, setAiDenoise] = useState(
+    () => Number(localStorage.getItem("assetforge.aiRefine.denoise") ?? 0.5),
+  );
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [comfyOnline, setComfyOnline] = useState<boolean | null>(null);
+  // localSlotUrls: blob:// URLs from per-slot file pickers (arbitrary local files)
+  const [localSlotUrls, setLocalSlotUrls] = useState<Partial<Record<ProjectionDirection, string>>>({});
+  // refinedUrls: data:// URLs returned by ComfyUI, kept in memory
+  const [refinedUrls, setRefinedUrls] = useState<Partial<Record<ProjectionDirection, string>>>({});
+  const [refiningSlots, setRefiningSlots] = useState<Partial<Record<ProjectionDirection, boolean>>>({});
+
   // 1. Resolve the low-poly FBX (production side) + concept images.
   useEffect(() => {
     let alive = true;
@@ -145,8 +163,19 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
         // Embedded FBX textures decode asynchronously — wait for the image, then use it.
         if (mapTex) {
           const tex = mapTex as THREE.Texture;
-          const img = tex.image as CanvasImageSource & { complete?: boolean; addEventListener?: (t: string, l: () => void, o?: object) => void };
-          const use = () => { if (alive) { setFbxBaseImage(tex.image as CanvasImageSource); setBasePath("__fbx__"); } };
+          const img = tex.image as HTMLImageElement & { addEventListener?: (t: string, l: () => void, o?: object) => void };
+          const use = () => {
+            if (!alive) return;
+            // Only treat the FBX texture as valid if the image actually has pixel data
+            // (naturalWidth > 0). External texture references that 404 set complete=true
+            // but naturalWidth=0 — skip those so the productionImages loader can run.
+            if (!img || img.naturalWidth === 0) return;
+            setFbxBaseImage(img);
+            setBasePath("__fbx__");
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.needsUpdate = true;
+            setBakedTexture((prev) => { prev?.dispose(); return tex; });
+          };
           if (img && img.complete === false && img.addEventListener) {
             img.addEventListener("load", use, { once: true });
           } else if (img) {
@@ -163,6 +192,15 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
     );
     return () => { alive = false; };
   }, [fbxPath]);
+
+  // Check ComfyUI status (callable on demand too).
+  const checkComfyStatus = () => {
+    setComfyOnline(null);
+    comfyuiStatus()
+      .then((r) => setComfyOnline(r.running))
+      .catch(() => setComfyOnline(false));
+  };
+  useEffect(checkComfyStatus, []);
 
   // Draw the UV layout (wireframe of all islands) like Blender's UV editor.
   useEffect(() => {
@@ -196,6 +234,22 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
     ctx.stroke();
   }, [meshes]);
 
+  // Returns the effective display URL for a slot (refined > local file > project assign).
+  const getSlotDisplayUrl = (dir: ProjectionDirection): string | null => {
+    if (refinedUrls[dir]) return refinedUrls[dir]!;
+    if (localSlotUrls[dir]) return localSlotUrls[dir]!;
+    if (assign[dir]) return fileUrl(assign[dir]);
+    return null;
+  };
+
+  // Returns the raw path/URL to use for baking (same priority, but keeps assign path as-is).
+  const getSlotBakeSource = (dir: ProjectionDirection): string | null => {
+    if (refinedUrls[dir]) return refinedUrls[dir]!;
+    if (localSlotUrls[dir]) return localSlotUrls[dir]!;
+    if (assign[dir]) return assign[dir];
+    return null;
+  };
+
   // Compute matte (cutout) previews for assigned directions.
   useEffect(() => {
     let alive = true;
@@ -209,15 +263,15 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
     (async () => {
       const next: Partial<Record<ProjectionDirection, string>> = {};
       for (const dir of PROJECTION_DIRECTIONS) {
-        const p = assign[dir];
-        if (!p) continue;
+        const url = getSlotDisplayUrl(dir);
+        if (!url) continue;
         try {
-          const im = await loadImg(fileUrl(p));
+          const im = await loadImg(url);
           if (matteOn) {
             const c = floodFillMatte(im, { whiteThreshold, edgeShrink, cropToContent: true });
             next[dir] = c.toDataURL("image/png");
           } else {
-            next[dir] = fileUrl(p);
+            next[dir] = url;
           }
         } catch {
           /* ignore */
@@ -226,11 +280,12 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
       if (alive) setMattePreviews(next);
     })();
     return () => { alive = false; };
-  }, [assign, matteOn, whiteThreshold, edgeShrink]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assign, localSlotUrls, refinedUrls, matteOn, whiteThreshold, edgeShrink]);
 
   const assignedCount = useMemo(
-    () => PROJECTION_DIRECTIONS.filter((d) => assign[d]).length,
-    [assign],
+    () => PROJECTION_DIRECTIONS.filter((d) => assign[d] || localSlotUrls[d]).length,
+    [assign, localSlotUrls],
   );
 
   const setPreviewFromCanvas = (c: HTMLCanvasElement) => {
@@ -326,6 +381,34 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, basePath, size, fbxBaseImage]);
 
+  // Load the project BaseColor into the 3D viewer as the initial display texture.
+  // FBX external texture references fail through fileUrl(), so we load the
+  // production BaseColor independently. Uses productionImages directly so it never
+  // blocks on basePath === "__fbx__" (which can be set by a *failed* FBX tex ref).
+  useEffect(() => {
+    if (meshes.length === 0 || productionImages.length === 0) return;
+    const base =
+      productionImages.find((m) => /basecolor|albedo|texture_pbr/i.test(m.name)) ||
+      productionImages[0];
+    if (!base) return;
+    let alive = true;
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      fileUrl(base.path),
+      (tex) => {
+        if (!alive) return;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        setBakedTexture((prev) => {
+          // If FBX embedded tex already set something valid, keep it.
+          if (prev) { tex.dispose(); return prev; }
+          return tex;
+        });
+      },
+    );
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productionImages, meshes.length]);
+
   const handlePickLocalBase = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -344,7 +427,7 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const loadTexture = (path: string): Promise<THREE.Texture> =>
+  const loadTexture = (pathOrUrl: string): Promise<THREE.Texture> =>
     new Promise((resolve, reject) => {
       const image = new Image();
       image.onload = () => {
@@ -363,8 +446,10 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
           reject(e);
         }
       };
-      image.onerror = () => reject(new Error(`图片加载失败: ${path}`));
-      image.src = fileUrl(path);
+      image.onerror = () => reject(new Error(`图片加载失败`));
+      // data: and blob: URLs are used directly; server paths go through fileUrl.
+      const isDirectUrl = pathOrUrl.startsWith("data:") || pathOrUrl.startsWith("blob:");
+      image.src = isDirectUrl ? pathOrUrl : fileUrl(pathOrUrl);
     });
 
   const handleBake = async () => {
@@ -375,7 +460,7 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
       // Load textures first so each (cropped) image's aspect can shape its camera.
       const loaded: { dir: ProjectionDirection; texture: THREE.Texture; aspect: number }[] = [];
       for (const dir of PROJECTION_DIRECTIONS) {
-        const p = assign[dir];
+        const p = getSlotBakeSource(dir);
         if (!p) continue;
         const texture = await loadTexture(p);
         const im = texture.image as { width: number; height: number };
@@ -438,6 +523,106 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
     } finally {
       setExporting(false);
     }
+  };
+
+  const handleAiRefine = async (dir: ProjectionDirection) => {
+    const srcUrl = localSlotUrls[dir] ?? (assign[dir] ? fileUrl(assign[dir]) : null);
+    if (!srcUrl) { setError("请先为该方向指派参考图（或通过本地选择）"); return; }
+
+    setRefiningSlots((prev) => ({ ...prev, [dir]: true }));
+    setError(null);
+    try {
+      // Convert the source image to base64.
+      const res = await fetch(srcUrl);
+      const blob = await res.blob();
+      const base64 = await new Promise<string>((ok, fail) => {
+        const reader = new FileReader();
+        reader.onload = () => ok(reader.result as string);
+        reader.onerror = fail;
+        reader.readAsDataURL(blob);
+      });
+
+      const result = await comfyuiRefine({
+        imageBase64: base64,
+        prompt: aiPrompt,
+        negPrompt: aiNegPrompt,
+        denoise: aiDenoise,
+      });
+
+      setRefinedUrls((prev) => ({ ...prev, [dir]: result.imageBase64 }));
+    } catch (e) {
+      setError(`AI精修失败 [${dir}]: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setRefiningSlots((prev) => ({ ...prev, [dir]: false }));
+    }
+  };
+
+  const handleRefineAll = async () => {
+    const dirs = PROJECTION_DIRECTIONS.filter((d) => localSlotUrls[d] || assign[d]);
+    for (const dir of dirs) {
+      await handleAiRefine(dir);
+    }
+  };
+
+  // Render the model from a given direction with an orthographic camera that exactly
+  // matches the bake projection camera — guarantees the AI input aligns with the UV.
+  const renderOrthographicView = (dir: ProjectionDirection): string => {
+    if (!box || meshes.length === 0) return "";
+    const renderSize = 1024;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
+    renderer.setSize(renderSize, renderSize, false);
+    renderer.setClearColor(0xffffff, 1); // white background → easy to matte
+
+    const scene = new THREE.Scene();
+    // Unlit so the texture colors match exactly what will be projected back.
+    const mat = bakedTexture
+      ? new THREE.MeshBasicMaterial({ map: bakedTexture, side: THREE.DoubleSide })
+      : new THREE.MeshBasicMaterial({ color: 0x888888, side: THREE.DoubleSide });
+
+    for (const m of meshes) {
+      const mesh = new THREE.Mesh(m.geometry, mat);
+      mesh.matrixAutoUpdate = false;
+      mesh.matrix.copy(m.modelMatrix);
+      mesh.matrixWorld.copy(m.modelMatrix);
+      scene.add(mesh);
+    }
+
+    // imageAspect=1: this render is 1024×1024 square, so handleBake computes
+    // aspect=1024/1024=1 and uses the same camera. Both must agree on the frustum.
+    const aspects: Partial<Record<ProjectionDirection, number>> = { [dir]: 1 };
+    const cam = buildDirectionCameras(box, { front, up, mirrorLR }, aspects)[dir];
+    renderer.render(scene, cam);
+    const dataUrl = renderer.domElement.toDataURL("image/png");
+
+    mat.dispose();
+    renderer.dispose();
+    return dataUrl;
+  };
+
+  const handleRenderView = (dir: ProjectionDirection) => {
+    if (!box || meshes.length === 0) { setError("模型还未加载，请稍等"); return; }
+    setError(null);
+    const dataUrl = renderOrthographicView(dir);
+    if (!dataUrl) return;
+    setLocalSlotUrls((prev) => ({ ...prev, [dir]: dataUrl }));
+    // Clear any stale refined result so the new render is used as the fresh base.
+    setRefinedUrls((prev) => ({ ...prev, [dir]: undefined }));
+  };
+
+  const handleRenderAll = () => {
+    if (!box || meshes.length === 0) { setError("模型还未加载，请稍等"); return; }
+    setError(null);
+    const next: Partial<Record<ProjectionDirection, string>> = {};
+    for (const dir of PROJECTION_DIRECTIONS) {
+      next[dir] = renderOrthographicView(dir);
+    }
+    setLocalSlotUrls((prev) => ({ ...prev, ...next }));
+    setRefinedUrls({});
+  };
+
+  const clearSlot = (dir: ProjectionDirection) => {
+    setLocalSlotUrls((prev) => { const n = { ...prev }; delete n[dir]; return n; });
+    setRefinedUrls((prev) => { const n = { ...prev }; delete n[dir]; return n; });
   };
 
   return (
@@ -587,25 +772,88 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
 
             <div className="split-selection">
               <span className="split-section-label">方向参考图（{assignedCount}/6）</span>
-              {PROJECTION_DIRECTIONS.map((dir) => (
-                <div key={dir} className="proj-slot">
-                  {assign[dir] ? (
-                    <img className="proj-slot-thumb" src={fileUrl(assign[dir])} alt={DIRECTION_LABELS[dir]} />
-                  ) : (
-                    <div className="proj-slot-thumb empty">{DIRECTION_LABELS[dir][0]}</div>
-                  )}
-                  <span className="proj-slot-label">{DIRECTION_LABELS[dir]}</span>
-                  <select
-                    value={assign[dir]}
-                    onChange={(e) => setAssign((p) => ({ ...p, [dir]: e.target.value }))}
-                  >
-                    <option value="">（未指派）</option>
-                    {conceptImages.map((img) => (
-                      <option key={img.path} value={img.path}>{img.name}</option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+              {PROJECTION_DIRECTIONS.map((dir) => {
+                const displayUrl = getSlotDisplayUrl(dir);
+                const hasSource = !!(localSlotUrls[dir] || assign[dir]);
+                const isRefined = !!refinedUrls[dir];
+                const isRefining = !!refiningSlots[dir];
+                return (
+                  <div key={dir} className="proj-slot">
+                    {displayUrl ? (
+                      <div style={{ position: "relative", display: "inline-block" }}>
+                        <img className="proj-slot-thumb" src={displayUrl} alt={DIRECTION_LABELS[dir]} />
+                        {isRefined && (
+                          <span style={{ position: "absolute", bottom: 2, right: 2, fontSize: 9, background: "#4a9", color: "#fff", padding: "1px 3px", borderRadius: 3 }}>AI</span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="proj-slot-thumb empty">{DIRECTION_LABELS[dir][0]}</div>
+                    )}
+                    <span className="proj-slot-label">{DIRECTION_LABELS[dir]}</span>
+                    <select
+                      value={assign[dir]}
+                      onChange={(e) => {
+                        setAssign((p) => ({ ...p, [dir]: e.target.value }));
+                        setRefinedUrls((p) => ({ ...p, [dir]: undefined }));
+                      }}
+                    >
+                      <option value="">（未指派）</option>
+                      {conceptImages.map((img) => (
+                        <option key={img.path} value={img.path}>{img.name}</option>
+                      ))}
+                    </select>
+                    <div style={{ display: "flex", gap: 3, marginTop: 2, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        title="用正交相机渲染此视角（与 bake 投影相机完全对齐）"
+                        disabled={!box || meshes.length === 0}
+                        onClick={() => handleRenderView(dir)}
+                        style={{ fontSize: 11, padding: "2px 6px", background: "var(--bg-3,#2a2d35)", border: "1px solid var(--border,#444)", borderRadius: 4, cursor: "pointer", color: "var(--text,#ccc)" }}
+                      >渲染</button>
+                      <label
+                        title="从本地文件选择（不限于项目目录）"
+                        style={{ fontSize: 11, padding: "2px 6px", background: "var(--bg-3,#2a2d35)", border: "1px solid var(--border,#444)", borderRadius: 4, cursor: "pointer", color: "var(--text-muted,#aaa)" }}
+                      >
+                        本地…
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: "none" }}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            const url = URL.createObjectURL(f);
+                            setLocalSlotUrls((p) => ({ ...p, [dir]: url }));
+                            setRefinedUrls((p) => ({ ...p, [dir]: undefined }));
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        title={comfyOnline === false ? "ComfyUI 未运行（127.0.0.1:8188）" : "AI精修此视角"}
+                        disabled={!hasSource || isRefining || comfyOnline === false}
+                        onClick={() => void handleAiRefine(dir)}
+                        style={{
+                          fontSize: 11, padding: "2px 6px",
+                          background: isRefined ? "var(--accent-muted,#2a4a3a)" : "var(--bg-3,#2a2d35)",
+                          border: "1px solid var(--border,#444)", borderRadius: 4, cursor: "pointer",
+                          color: comfyOnline === false ? "var(--text-muted,#666)" : "var(--text,#ccc)",
+                        }}
+                      >
+                        {isRefining ? "精修中…" : "AI精修"}
+                      </button>
+                      {(localSlotUrls[dir] || refinedUrls[dir]) && (
+                        <button
+                          type="button"
+                          title="清除本地图和AI精修结果，恢复到下拉选择"
+                          onClick={() => clearSlot(dir)}
+                          style={{ fontSize: 11, padding: "2px 6px", background: "var(--bg-3,#2a2d35)", border: "1px solid #664", borderRadius: 4, cursor: "pointer", color: "#a88" }}
+                        >清除</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="split-custom">
@@ -637,6 +885,79 @@ export function TextureProjectionModal({ project, onClose, onExported }: Texture
                 <input type="number" min={0} max={0.05} step={0.001} value={depthBias} disabled={!occlusion}
                   onChange={(e) => setDepthBias(Number(e.target.value))} />
               </label>
+            </div>
+
+            {/* AI 精修设置 */}
+            <div className="split-custom">
+              <button
+                type="button"
+                className="split-section-label"
+                style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", width: "100%", padding: 0 }}
+                onClick={() => setAiPanelOpen((v) => !v)}
+              >
+                AI 精修设置 {aiPanelOpen ? "▲" : "▼"}
+                <span style={{ marginLeft: 8, fontSize: 10, color: comfyOnline === true ? "#4a9" : comfyOnline === false ? "#c55" : "#888" }}>
+                  {comfyOnline === true ? "● ComfyUI 在线" : comfyOnline === false ? "● ComfyUI 离线" : "● 检测中…"}
+                </span>
+                {comfyOnline !== null && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); checkComfyStatus(); }}
+                    onKeyDown={(e) => e.key === "Enter" && checkComfyStatus()}
+                    style={{ marginLeft: 6, fontSize: 10, cursor: "pointer", opacity: 0.6 }}
+                    title="重新检测"
+                  >↻</span>
+                )}
+              </button>
+              {aiPanelOpen && (
+                <>
+                  <label style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                    <span>提示词</span>
+                    <textarea
+                      rows={2}
+                      value={aiPrompt}
+                      onChange={(e) => { setAiPrompt(e.target.value); localStorage.setItem("assetforge.aiRefine.prompt", e.target.value); }}
+                      style={{ width: "100%", resize: "vertical", fontSize: 11, background: "var(--bg-3,#2a2d35)", color: "var(--text,#ccc)", border: "1px solid var(--border,#444)", borderRadius: 4, padding: 4 }}
+                    />
+                  </label>
+                  <label style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                    <span>负面提示词</span>
+                    <textarea
+                      rows={2}
+                      value={aiNegPrompt}
+                      onChange={(e) => { setAiNegPrompt(e.target.value); localStorage.setItem("assetforge.aiRefine.negPrompt", e.target.value); }}
+                      style={{ width: "100%", resize: "vertical", fontSize: 11, background: "var(--bg-3,#2a2d35)", color: "var(--text,#ccc)", border: "1px solid var(--border,#444)", borderRadius: 4, padding: 4 }}
+                    />
+                  </label>
+                  <label>
+                    降噪强度（Denoise）
+                    <input type="number" min={0.1} max={1.0} step={0.05} value={aiDenoise}
+                      onChange={(e) => { setAiDenoise(Number(e.target.value)); localStorage.setItem("assetforge.aiRefine.denoise", e.target.value); }} />
+                  </label>
+                  <button
+                    type="button"
+                    className="split-link-btn"
+                    disabled={!box || meshes.length === 0}
+                    onClick={handleRenderAll}
+                    style={{ textAlign: "center" }}
+                  >
+                    全部方向渲染（正交）
+                  </button>
+                  <button
+                    type="button"
+                    className="split-link-btn"
+                    disabled={PROJECTION_DIRECTIONS.every((d) => !localSlotUrls[d] && !assign[d]) || comfyOnline === false || Object.values(refiningSlots).some(Boolean)}
+                    onClick={() => void handleRefineAll()}
+                    style={{ textAlign: "center" }}
+                  >
+                    {Object.values(refiningSlots).some(Boolean) ? "精修中…" : "全部方向 AI 精修"}
+                  </button>
+                  <p className="muted split-export-hint">
+                    使用 animagine-xl-4.0-opt · euler/normal · 20步 · CFG 7 · denoise {aiDenoise}
+                  </p>
+                </>
+              )}
             </div>
 
             {error && <p className="split-error">{error}</p>}
