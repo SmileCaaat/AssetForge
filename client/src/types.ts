@@ -143,8 +143,22 @@ export const PRODUCTION_ASSET_HINTS: Record<ProductionAssetRole, string> = {
   skeleton: "已绑定骨骼或骨架结果",
   smModel: "Static Mesh / 引擎用静态模型",
   blendProject: "Blender 工程文件，重命名为项目名.blend",
-  stateMachineAnim: "状态机动画 FBX，重命名为 {项目名}_Anim.fbx",
+  stateMachineAnim: "状态机动画 FBX，重命名为 {项目名}_{原文件名}.fbx",
 };
+
+/** 固定的状态机动画 clip 集合，缺失时在生产侧高亮提醒。 */
+export const ANIM_CLIP_NAMES = [
+  "attack",
+  "combatidle",
+  "death",
+  "defend",
+  "hit",
+  "idle",
+  "magic",
+  "run",
+  "T-Pose",
+  "walk",
+] as const;
 
 export function productionAssetTagClass(role?: ProductionAssetRole): string {
   if (role === "lowPoly") return "tag-low-poly";

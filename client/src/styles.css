@@ -859,6 +859,33 @@ code {
   cursor: not-allowed;
 }
 
+.anim-clip-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: rgba(251, 146, 60, 0.07);
+  border-top: 1px solid rgba(251, 146, 60, 0.2);
+  font-size: 0.7rem;
+}
+
+.anim-clip-checklist-label {
+  color: #fb923c;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-right: 2px;
+}
+
+.anim-clip-missing-badge {
+  background: rgba(251, 146, 60, 0.18);
+  color: #fdba74;
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.68rem;
+}
+
 .asset-mark-btn-keyArt:hover:not(:disabled) {
   border-color: #a78bfa;
   color: #c4b5fd;

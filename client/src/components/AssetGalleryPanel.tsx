@@ -1,5 +1,6 @@
 import type { ConceptAssetRole, FileNode, ProductionAssetRole, TextureMapType } from "../types";
 import {
+  ANIM_CLIP_NAMES,
   ASSET_MARK_ROLES,
   CONCEPT_ROLE_LABELS,
   PRODUCTION_ASSET_HINTS,
@@ -99,23 +100,26 @@ export function AssetGalleryPanel({
             </div>
           )}
           {productionMarkEnabled && (
-            <div className="asset-mark-toolbar production-mark-toolbar">
-              {PRODUCTION_ASSET_ROLES.map((role) => (
-                <button
-                  key={role}
-                  type="button"
-                  className={`asset-mark-btn production-mark-btn production-mark-btn-${role}`}
-                  disabled={!selectedFile || !canMarkProductionAsset(selectedFile, role)}
-                  title={`标记为${PRODUCTION_ASSET_LABELS[role]}：${PRODUCTION_ASSET_HINTS[role]}`}
-                  onClick={() => {
-                    if (!selectedFile) return;
-                    onMarkProductionAsset(selectedFile, role);
-                  }}
-                >
-                  {PRODUCTION_ASSET_LABELS[role]}
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="asset-mark-toolbar production-mark-toolbar">
+                {PRODUCTION_ASSET_ROLES.map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    className={`asset-mark-btn production-mark-btn production-mark-btn-${role}`}
+                    disabled={!selectedFile || !canMarkProductionAsset(selectedFile, role)}
+                    title={`标记为${PRODUCTION_ASSET_LABELS[role]}：${PRODUCTION_ASSET_HINTS[role]}`}
+                    onClick={() => {
+                      if (!selectedFile) return;
+                      onMarkProductionAsset(selectedFile, role);
+                    }}
+                  >
+                    {PRODUCTION_ASSET_LABELS[role]}
+                  </button>
+                ))}
+              </div>
+              <AnimClipChecklist productionAssetTags={productionAssetTags} />
+            </>
           )}
         </div>
         <button type="button" className="panel-titlebar-btn" onClick={onHide} title="隐藏画廊">
@@ -143,5 +147,41 @@ export function AssetGalleryPanel({
         />
       </div>
     </section>
+  );
+}
+
+/** 显示 10 个标准状态机动画 clip 的已标/缺失情况。 */
+function AnimClipChecklist({
+  productionAssetTags,
+}: {
+  productionAssetTags?: Record<string, ProductionAssetRole>;
+}) {
+  if (!productionAssetTags) return null;
+
+  // Collect clip stems from tagged stateMachineAnim files.
+  // e.g. "Lumi_idle.fbx" → "idle", "T-Pose.fbx" → "t-pose"
+  const tagged = new Set(
+    Object.entries(productionAssetTags)
+      .filter(([, role]) => role === "stateMachineAnim")
+      .map(([p]) => {
+        const base = p.split(/[/\\]/).pop() ?? p;
+        const stem = base.replace(/\.[^.]+$/, ""); // strip extension
+        // Strip any single leading word-prefix (project name): "Lumi_idle" → "idle"
+        const under = stem.indexOf("_");
+        return (under > 0 ? stem.slice(under + 1) : stem).toLowerCase();
+      }),
+  );
+
+  const missing = ANIM_CLIP_NAMES.filter((c) => !tagged.has(c.toLowerCase()));
+
+  if (missing.length === 0) return null;
+
+  return (
+    <div className="anim-clip-checklist" title="以下状态机动画 clip 尚未标记">
+      <span className="anim-clip-checklist-label">动画缺失：</span>
+      {missing.map((clip) => (
+        <span key={clip} className="anim-clip-missing-badge">{clip}</span>
+      ))}
+    </div>
   );
 }
