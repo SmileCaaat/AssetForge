@@ -505,10 +505,10 @@ export default function App({ workspace, onRefresh }: AppProps) {
     }
   };
 
-  const handleMarkProductionAsset = async (node: FileNode, role: ProductionAssetRole) => {
+  const handleMarkProductionAsset = async (node: FileNode, role: ProductionAssetRole, clipName?: string) => {
     if (!selectedProjectId) return;
     try {
-      const result = await markProductionAsset(selectedProjectId, node.path, role);
+      const result = await markProductionAsset(selectedProjectId, node.path, role, clipName);
       await reloadProjectFiles();
       const tagRes = await fetchProductionAssetTags(selectedProjectId);
       setProductionAssetTags(tagRes.tags);
@@ -954,8 +954,8 @@ export default function App({ workspace, onRefresh }: AppProps) {
                         openBackgroundContextMenu(e, ".asset-card");
                       }}
                       onMarkAsset={(node, role) => void handleMarkAsset(node, role)}
-                      onMarkProductionAsset={(node, role) =>
-                        void handleMarkProductionAsset(node, role)
+                      onMarkProductionAsset={(node, role, clipName) =>
+                        void handleMarkProductionAsset(node, role, clipName)
                       }
                       onMarkTexture={(node, type) => void handleMarkTexture(node, type)}
                     />

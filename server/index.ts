@@ -709,7 +709,7 @@ app.get("/api/projects/:id/production-asset-tags", async (req, res) => {
 
 app.post("/api/projects/:id/mark-production-asset", async (req, res) => {
   try {
-    const { filePath, role } = req.body as { filePath: string; role: ProductionAssetRole };
+    const { filePath, role, clipName } = req.body as { filePath: string; role: ProductionAssetRole; clipName?: string };
     if (!filePath || !role) {
       res.status(400).json({ error: "filePath and role are required" });
       return;
@@ -727,6 +727,7 @@ app.post("/api/projects/:id/mark-production-asset", async (req, res) => {
       displayName: project.displayName,
       filePath,
       role,
+      clipName,
       allowedRoots: getAllowedRoots(state),
     });
     res.json(result);

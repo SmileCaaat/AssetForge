@@ -859,6 +859,46 @@ code {
   cursor: not-allowed;
 }
 
+.anim-clip-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-2, #1e2128);
+  border-top: 1px solid rgba(251, 146, 60, 0.3);
+}
+
+.anim-clip-btn {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  background: var(--bg-3, #2a2d35);
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  border-radius: 4px;
+  color: #fdba74;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.anim-clip-btn:hover:not(:disabled) {
+  background: rgba(251, 146, 60, 0.15);
+}
+
+.anim-clip-btn.tagged {
+  background: rgba(251, 146, 60, 0.12);
+  color: #fb923c;
+  border-color: #fb923c;
+}
+
+.anim-clip-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.production-mark-btn-stateMachineAnim.active {
+  border-color: #fb923c;
+  color: #fb923c;
+}
+
 .anim-clip-checklist {
   display: flex;
   flex-wrap: wrap;

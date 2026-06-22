@@ -196,6 +196,7 @@ export function markProductionAsset(
   projectId: string,
   filePath: string,
   role: ProductionAssetRole,
+  clipName?: string,
 ): Promise<{
   path: string;
   name: string;
@@ -205,7 +206,7 @@ export function markProductionAsset(
   return request(`/api/projects/${projectId}/mark-production-asset`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filePath, role }),
+    body: JSON.stringify({ filePath, role, clipName }),
   });
 }
 

@@ -132,6 +132,8 @@ export async function markProductionAsset(input: {
   filePath: string;
   role: ProductionAssetRole;
   allowedRoots: string[];
+  /** For stateMachineAnim: which clip this file represents (e.g. "idle"). */
+  clipName?: string;
 }): Promise<{
   path: string;
   name: string;
@@ -165,11 +167,11 @@ export async function markProductionAsset(input: {
   if (role !== "stateMachineAnim") removeTagsByRole(tags, role);
   removeTagByRelativePath(tags, oldRelative);
 
-  // stateMachineAnim: prepend project prefix to the original filename (idle.fbx → Lumi_idle.fbx).
+  // stateMachineAnim: rename to {prefix}_{clipName}{ext}, e.g. Lumi_idle.fbx
   let newName: string;
   if (role === "stateMachineAnim") {
-    const origBasename = path.basename(resolved);
-    newName = origBasename.startsWith(`${prefix}_`) ? origBasename : `${prefix}_${origBasename}`;
+    const clip = input.clipName ?? path.basename(resolved, ext);
+    newName = `${prefix}_${clip}${ext}`;
   } else {
     newName = buildProductionAssetName(prefix, role, ext, existingNames);
   }

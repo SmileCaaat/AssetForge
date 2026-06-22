@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ConceptAssetRole, FileNode, ProductionAssetRole, TextureMapType } from "../types";
 import {
   ANIM_CLIP_NAMES,
@@ -32,7 +33,7 @@ interface AssetGalleryPanelProps {
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
   onBackgroundContextMenu: (e: React.MouseEvent) => void;
   onMarkAsset: (node: FileNode, role: ConceptAssetRole) => void;
-  onMarkProductionAsset: (node: FileNode, role: ProductionAssetRole) => void;
+  onMarkProductionAsset: (node: FileNode, role: ProductionAssetRole, clipName?: string) => void;
   onMarkTexture: (node: FileNode, type: TextureMapType) => void;
 }
 
@@ -56,6 +57,8 @@ export function AssetGalleryPanel({
   onMarkProductionAsset,
   onMarkTexture,
 }: AssetGalleryPanelProps) {
+  const [animPickerOpen, setAnimPickerOpen] = useState(false);
+
   return (
     <section className="panel asset-gallery-panel">
       <div className="panel-titlebar asset-gallery-titlebar">
@@ -102,7 +105,7 @@ export function AssetGalleryPanel({
           {productionMarkEnabled && (
             <>
               <div className="asset-mark-toolbar production-mark-toolbar">
-                {PRODUCTION_ASSET_ROLES.map((role) => (
+                {PRODUCTION_ASSET_ROLES.filter((r) => r !== "stateMachineAnim").map((role) => (
                   <button
                     key={role}
                     type="button"
@@ -117,7 +120,49 @@ export function AssetGalleryPanel({
                     {PRODUCTION_ASSET_LABELS[role]}
                   </button>
                 ))}
+                {/* 状态机动画：点击展开 clip 选择器 */}
+                <button
+                  type="button"
+                  className={`asset-mark-btn production-mark-btn production-mark-btn-stateMachineAnim${animPickerOpen ? " active" : ""}`}
+                  disabled={!selectedFile || !canMarkProductionAsset(selectedFile, "stateMachineAnim")}
+                  title={`标记为状态机动画，选择 clip 名并重命名`}
+                  onClick={() => setAnimPickerOpen((v) => !v)}
+                >
+                  {PRODUCTION_ASSET_LABELS.stateMachineAnim} {animPickerOpen ? "▲" : "▼"}
+                </button>
               </div>
+              {animPickerOpen && (
+                <div className="anim-clip-picker">
+                  {ANIM_CLIP_NAMES.map((clip) => {
+                    const isTagged = productionAssetTags
+                      ? Object.entries(productionAssetTags).some(([p, role]) => {
+                          if (role !== "stateMachineAnim") return false;
+                          const base = p.split(/[/\\]/).pop() ?? p;
+                          const stem = base.replace(/\.[^.]+$/, "");
+                          const under = stem.indexOf("_");
+                          const clipStem = under > 0 ? stem.slice(under + 1) : stem;
+                          return clipStem.toLowerCase() === clip.toLowerCase();
+                        })
+                      : false;
+                    return (
+                      <button
+                        key={clip}
+                        type="button"
+                        className={`anim-clip-btn${isTagged ? " tagged" : ""}`}
+                        disabled={!selectedFile}
+                        title={`标记为 ${clip} → 重命名为 {项目名}_${clip}.fbx`}
+                        onClick={() => {
+                          if (!selectedFile) return;
+                          onMarkProductionAsset(selectedFile, "stateMachineAnim", clip);
+                          setAnimPickerOpen(false);
+                        }}
+                      >
+                        {isTagged ? "✓ " : ""}{clip}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               <AnimClipChecklist productionAssetTags={productionAssetTags} />
             </>
           )}
@@ -150,7 +195,7 @@ export function AssetGalleryPanel({
   );
 }
 
-/** 显示 10 个标准状态机动画 clip 的已标/缺失情况。 */
+/** 显示 10 个标准状态机动画 clip 的缺失情况。 */
 function AnimClipChecklist({
   productionAssetTags,
 }: {
@@ -158,22 +203,18 @@ function AnimClipChecklist({
 }) {
   if (!productionAssetTags) return null;
 
-  // Collect clip stems from tagged stateMachineAnim files.
-  // e.g. "Lumi_idle.fbx" → "idle", "T-Pose.fbx" → "t-pose"
   const tagged = new Set(
     Object.entries(productionAssetTags)
       .filter(([, role]) => role === "stateMachineAnim")
       .map(([p]) => {
         const base = p.split(/[/\\]/).pop() ?? p;
-        const stem = base.replace(/\.[^.]+$/, ""); // strip extension
-        // Strip any single leading word-prefix (project name): "Lumi_idle" → "idle"
+        const stem = base.replace(/\.[^.]+$/, "");
         const under = stem.indexOf("_");
         return (under > 0 ? stem.slice(under + 1) : stem).toLowerCase();
       }),
   );
 
   const missing = ANIM_CLIP_NAMES.filter((c) => !tagged.has(c.toLowerCase()));
-
   if (missing.length === 0) return null;
 
   return (
