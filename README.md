@@ -7,7 +7,7 @@
 本地优先的风格化游戏资产生产平台，把 **概念设计 → Blender 生产 → Unity 交付** 串成一条流水线。
 管理 **ConceptWorkspace**（概念）与 **BlenderWorkspace**（生产）双根目录，支持项目关联、文件浏览、资产标记、预览与批量操作。
 
-![status](https://img.shields.io/badge/version-v0.6-blue) ![stack](https://img.shields.io/badge/stack-Node%20%2B%20React%20%2B%20Three.js-3c8) ![platform](https://img.shields.io/badge/platform-Windows-lightgrey)
+![status](https://img.shields.io/badge/version-v0.7-blue) ![stack](https://img.shields.io/badge/stack-Node%20%2B%20React%20%2B%20Three.js-3c8) ![platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 
 </div>
 
@@ -19,7 +19,7 @@
 
 - [快速开始](#快速开始)
 - [更新与推送](#更新与推送)
-- [功能概览](#功能概览-v06)
+- [功能概览](#功能概览-v07)
 - [目录结构](#总工作区目录结构)
 - [配置文件](#配置文件)
 - [快捷键](#默认快捷键)
@@ -110,7 +110,7 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 
 ---
 
-## 功能概览 (v0.6)
+## 功能概览 (v0.7)
 
 > 🧪 Material Lab 进度见 [AssetForge_MaterialLab_AICODING.md](./devplan/AssetForge_MaterialLab_AICODING.md) **「零、实现状态」**。Unity 实机 Toon 已验收；**Slang 阶段 B 已搁置**。
 
@@ -157,6 +157,20 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 `BaseColor` · `Roughness` · `Metallic` · `Normal` · `AO` · `Height` · `Edge` · `Detection` · `Alpha` · `Bump` · `Curvature` · `Emission` · `MetallicSmoothness`（**MetSmth**，合并 Metallic+Roughness 后自动标记）
 
 原始贴图建议放在 `textures/source/`；标记元数据写入 `.asset-manager/blender_texture_tags.json`。
+
+### 🏭 生产资产标记（生产侧）
+
+画廊标题栏提供生产资产类型按钮，**一键重命名**并写入 `.asset-manager/production_asset_tags.json`：
+
+| 按钮 | 命名规则 | 说明 |
+|------|----------|------|
+| 低模 | `{项目名}_Low.{ext}` | 每项目唯一 |
+| 骨骼 | `{项目名}_Skeleton.{ext}` | 每项目唯一 |
+| SM模型 | `SM_{项目名}.{ext}` | 每项目唯一 |
+| 工程 | `{项目名}.blend` | 每项目唯一 |
+| 状态机动画 ▼ | `{项目名}_{clip}.{ext}` | 可多文件 |
+
+**状态机动画工作流**：点击「状态机动画 ▼」展开 10 个 clip 选择按钮（attack · combatidle · death · defend · hit · idle · magic · run · T-Pose · walk），点击任一 clip 即标记并重命名为 `{项目名}_{clip}.fbx`。已标记的 clip 显示橙色 ✓；标题栏下方实时提示哪些 clip 尚未标记，全部完成后提醒消失。
 
 ### 👁️ 预览
 
@@ -209,6 +223,17 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 - **ToonURP** 支持 URP 主光方向、颜色、片元阴影采样、`SampleSH` 环境光、**ShadowCaster** 投影；Outline 带远景宽度 LOD
 - **ToonTerrainURP**（地形 Material Lab）：软 Toon 光照 + **接收角色投射阴影**（`AMTLightingCommon.hlsl` + `_ShadowReceiveStrength`）
 - **Slang 编译（阶段 B）已搁置** —— 使用内置 fallback HLSL
+
+### 🧩 纹理投影工具（生产侧，实验性）
+
+在生产视图工具栏点击 **「纹理投影」** 打开全屏 Modal，基于 Three.js 正交相机将已有贴图从 6 个方向投影烘焙到 UV 空间：
+
+- **6 方向正交渲染**：每个方向可单独点「渲染」生成 1024×1024 正射参考图（与烘焙相机完全对齐），也可「全部方向渲染（正交）」一键生成
+- **深度遮挡**：渲染精度与烘焙分辨率一致（默认 2048），避免 z-fighting
+- **AI 精修**（需本地 ComfyUI）：上传参考图后，填写正向 / 反向提示词、降噪强度（持久化到 `localStorage`），调用 ComfyUI img2img 精修贴图
+- **投影 → UV 烘焙**：精修结果通过正交相机投影到模型 UV，支持对已有贴图做增量 BaseColor 覆写
+
+> ⚠️ **局限性**：此功能不适合作为人物模型贴图制作，是否适合规则多边形道具（建筑、武器、载具等）使用还有待测试。人物模型头发 / 睫毛的深度复杂度会导致面部 UV 覆盖率为零。
 
 ---
 
@@ -293,7 +318,10 @@ git -c "http.proxy=$proxy" -c "https.proxy=$proxy" push origin main
 | `POST` | `/api/projects/:id/material-lab/merge-metallic-smoothness` | 合并 Metallic + Roughness |
 | `POST` | `/api/projects/:id/material-lab/check` | Unity 贴图规范检查 |
 | `POST` | `/api/projects/:id/material-lab/export-unity` | 导出 Unity 包（整资产） |
+| `GET/POST` | `/api/projects/:id/production-asset-tags` | 读取 / 标记生产资产（含状态机动画 clip） |
 | `GET/POST` | `/api/projects/:id/rigging/*` | 骨骼实验室：选择输入、检查服务、自动绑定、清理缓存 |
+| `GET` | `/api/comfyui/status` | 检查本地 ComfyUI 是否在线 |
+| `POST` | `/api/comfyui/refine` | ComfyUI img2img 精修（纹理投影 AI 精修） |
 | `POST` | `/api/images/resize` | 纹理尺寸转换 |
 | `POST` | `/api/images/mirror` | 概念图片镜像保存 |
 | `POST` | `/api/fs/split-image` | 宫格分割（可选导出指定格子） |
